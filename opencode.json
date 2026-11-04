@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agents": {
+    "toan": {
+      "description": "Trợ giảng giải bài tập SGK Toán 12 - Tập 2, chỉ trả lời bằng văn bản",
+      "mode": "primary",
+      "system": "{file:./prompt.md}",
+      "permissions": [
+        { "action": "*", "resource": "*", "effect": "deny" }
+      ]
+    },
+    "hinhve": {
+      "description": "Vẽ hình minh họa bằng SVG cho bài hình học",
+      "mode": "primary",
+      "system": "{file:./figure.md}",
+      "permissions": [
+        { "action": "*", "resource": "*", "effect": "deny" }
+      ]
+    }
+  }
+}
