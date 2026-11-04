@@ -33,6 +33,7 @@ python server.py --port 9000 --no-browser
 | `server.py` | Web server local + gọi OpenCode CLI sinh lời giải |
 | `index.html` | Giao diện chat, hiển thị công thức bằng KaTeX |
 | `pages.json` | Nội dung từng trang sách, đã trích sẵn từ `sgkII.pdf` |
+| `sgkII.pdf` | Sách gốc, dùng để cắt hình trong sách và trích lại `pages.json` |
 | `extract_pages.py` | Tạo lại `pages.json` từ PDF (cần `pymupdf`) |
 | `figures.py` | Cắt hình có sẵn trong SGK (cần `pymupdf`) |
 | `figures_cache/` | Ảnh hình đã cắt (tự sinh khi chạy) |

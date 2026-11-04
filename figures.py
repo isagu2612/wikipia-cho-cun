@@ -16,7 +16,9 @@ import pymupdf
 
 BASE = Path(__file__).resolve().parent
 CACHE_DIR = BASE / "figures_cache"
-DEFAULT_PDF = BASE.parent / "sgkII.pdf"
+DEFAULT_PDF = BASE / "sgkII.pdf"
+if not DEFAULT_PDF.exists():
+    DEFAULT_PDF = BASE.parent / "sgkII.pdf"
 
 
 def _cluster(rects: list[pymupdf.Rect], gap: float = 12.0) -> list[pymupdf.Rect]:

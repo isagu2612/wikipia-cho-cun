@@ -21,7 +21,9 @@ import pymupdf
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE = Path(__file__).resolve().parent
-DEFAULT_PDF = BASE.parent / "sgkII.pdf"
+DEFAULT_PDF = BASE / "sgkII.pdf"
+if not DEFAULT_PDF.exists():
+    DEFAULT_PDF = BASE.parent / "sgkII.pdf"
 
 
 def main() -> None:
