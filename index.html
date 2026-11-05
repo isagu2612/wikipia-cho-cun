@@ -47,6 +47,14 @@
   .brand p{margin:2px 0 0; font-size:12.5px; color:var(--muted)}
 
   /* ---------- Chuyển chế độ ---------- */
+  .api-btn{
+    flex:0 0 auto; width:32px; height:32px; border-radius:50%;
+    border:1.5px solid var(--line-strong); background:var(--surface);
+    color:var(--muted); font-size:15px; line-height:1; cursor:pointer;
+    margin-left:auto; transition:color .15s, border-color .15s;
+  }
+  .api-btn:hover{color:var(--ink); border-color:var(--ink)}
+  .api-btn.warn{color:#b45309; border-color:#f0b429; background:#fffbeb}
   .mode-switch{
     position:relative; display:inline-flex; flex:0 0 auto;
     background:var(--surface); border:1.5px solid var(--line-strong);
@@ -262,6 +270,7 @@
         <p>Tập 2 · gõ tên bài kèm số trang, ví dụ “bài 1a trang 5”</p>
       </div>
     </div>
+    <button type="button" class="api-btn" id="apiBtn" title="Đặt địa chỉ máy chủ API" aria-label="Đặt địa chỉ máy chủ API">⚙</button>
     <div class="mode-switch" id="modeSwitch" data-mode="concise" role="group" aria-label="Chế độ trả lời">
       <span class="mode-thumb" aria-hidden="true"></span>
       <button type="button" class="mode-btn" data-mode="concise">Normal</button>
@@ -292,7 +301,26 @@ const form     = document.getElementById('composer');
 const input    = document.getElementById('input');
 const sendBtn  = document.getElementById('send');
 const modeSwitch = document.getElementById('modeSwitch');
+const apiBtn     = document.getElementById('apiBtn');
 let   busy     = false;
+
+/* ---------- Địa chỉ máy chủ API ----------
+   Chạy server.py cùng máy: để trống = dùng chung domain.
+   Chạy qua Cloudflare Worker: đặt URL tunnel bằng nút ⚙ hoặc ?api=<url>. */
+const API_STORAGE = 'toan-chatbox-api';
+const API_TIMEOUT = 95000;   // Cloudflare cắt request ở ~100s
+
+function normalizeBase(v){
+  return (v || '').trim().replace(/\/+$/, '');
+}
+let apiBase = (() => {
+  const fromUrl = normalizeBase(new URLSearchParams(location.search).get('api'));
+  if (fromUrl){
+    localStorage.setItem(API_STORAGE, fromUrl);
+    return fromUrl;
+  }
+  return normalizeBase(localStorage.getItem(API_STORAGE) || '');
+})();
 
 /* ---------- Chế độ và lệnh ---------- */
 const MODE_STORAGE = 'toan-chatbox-mode';
@@ -481,17 +509,33 @@ function setBusy(value){
 }
 
 async function postJson(url, payload){
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), API_TIMEOUT);
+  let res;
+  try {
+    res = await fetch(apiBase + url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal
+    });
+  } catch (e){
+    if (e.name === 'AbortError'){
+      throw new Error('Máy chủ phản hồi quá ' + (API_TIMEOUT / 1000) + ' giây. Thử lại hoặc chia nhỏ câu hỏi.');
+    }
+    throw new Error('Không kết nối được máy chủ' + (apiBase ? ' (' + apiBase + ')' : '')
+      + '. Kiểm tra server.py và tunnel đã chạy chưa.');
+  } finally {
+    clearTimeout(timer);
+  }
   const text = await res.text();
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch (e) {}
   if (!data){
-    throw new Error('Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + res.status + '). '
-      + 'Có thể API chưa chạy trên domain này hoặc bị timeout.');
+    const hint = (res.status === 404)
+      ? 'Không thấy API ở địa chỉ này. Bấm ⚙ để đặt lại URL máy chủ.'
+      : 'Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + res.status + ').';
+    throw new Error(hint);
   }
   return { res, data };
 }
@@ -626,7 +670,30 @@ modeSwitch.addEventListener('click', e => {
   applyMode(btn.dataset.mode, true);
 });
 
+function refreshApiBtn(){
+  const local = ['127.0.0.1', 'localhost'].includes(location.hostname) || location.protocol === 'file:';
+  apiBtn.classList.toggle('warn', !apiBase && !local);
+  apiBtn.title = 'Máy chủ API: ' + (apiBase || (local ? 'cùng máy' : 'chưa đặt — bấm để đặt'));
+}
+
+apiBtn.addEventListener('click', () => {
+  const value = prompt(
+    'Địa chỉ máy chủ API (ví dụ https://abc.trycloudflare.com).\nĐể trống nếu chạy server.py cùng máy.',
+    apiBase
+  );
+  if (value === null) return;
+  apiBase = normalizeBase(value);
+  if (apiBase) localStorage.setItem(API_STORAGE, apiBase);
+  else localStorage.removeItem(API_STORAGE);
+  refreshApiBtn();
+  addNotice(apiBase ? 'Đã đặt máy chủ API: ' + apiBase : 'Dùng máy chủ cùng domain.');
+});
+
 updateModeUI();
+refreshApiBtn();
+if (apiBtn.classList.contains('warn')){
+  addNotice('Chưa đặt địa chỉ máy chủ. Bấm nút ⚙ ở góc phải để dán URL tunnel.');
+}
 window.addEventListener('resize', updateModeUI);
 window.addEventListener('load', updateModeUI);
 

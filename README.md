@@ -25,9 +25,30 @@ python server.py --port 9000 --no-browser
 > khi OpenCode khởi động lại. Nếu cổng đã có app chạy sẵn, `start.bat` chỉ mở
 > trình duyệt chứ không báo lỗi.
 
+## Dùng qua web công khai (Cloudflare Worker + tunnel)
+
+Bản trên `https://sgk.ncd-congdinh2612.workers.dev` chỉ là **giao diện tĩnh**;
+phần giải bài vẫn chạy trên máy bạn. Cách nối hai bên:
+
+1. Bấm đúp `share.bat`.
+2. Script khởi động `server.py` + `cloudflared`, rồi in ra link dạng
+   `https://sgk.ncd-congdinh2612.workers.dev/?api=https://xxx.trycloudflare.com`
+   và copy sẵn vào clipboard.
+3. Mở link đó (hoặc gửi cho người khác). Trình duyệt tự lưu địa chỉ API vào
+   `localStorage`; lần sau chỉ cần mở link gốc.
+4. Giữ cửa sổ `share.bat` mở. Tunnel đổi URL mỗi lần chạy → chạy lại script và
+   dùng link mới.
+
+Đổi địa chỉ API thủ công: bấm nút **⚙** ở góc phải tiêu đề.
+
+Lưu ý: máy phải bật và 9Router/OpenCode phải chạy; request quá ~95 giây sẽ bị
+Cloudflare cắt (script không tự đổi `REQUEST_TIMEOUT`, đặt biến môi trường này
+nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
+
 ## Yêu cầu
 
 - **OpenCode CLI** đã cài và đã đăng nhập provider (app gọi `opencode run`).
+- **cloudflared** (chỉ cần khi dùng `share.bat`): `winget install Cloudflare.cloudflared`.
 - **Python 3.10+** (chỉ dùng thư viện chuẩn để chạy app).
 
 ## Cấu trúc
@@ -45,6 +66,7 @@ python server.py --port 9000 --no-browser
 | `prompt.md` | System prompt của agent `toan` |
 | `figure.md` | System prompt của agent `hinhve` |
 | `start.bat` | Chạy nhanh trên Windows |
+| `share.bat` / `share.ps1` | Chạy server + tunnel, in link web có `?api=` |
 
 ## Cách hoạt động
 
@@ -92,7 +114,7 @@ Có 3 chế độ, chuyển bằng nút ở góc trên bên phải:
 
 - Chế độ được lưu trong trình duyệt (localStorage).
 - Mọi câu trả lời đều kết thúc bằng mục **Trình bày (để chép)**:
-  bản viết gọn theo lối "Ta có → Suy ra → Do đó → Vậy", đóng khung đáp án.
+  bản viết gọn: "Ta có:" rồi mỗi bước xuống dòng bắt đầu bằng "=>", đóng khung đáp án.
 - Hình chỉ xuất hiện khi người dùng yêu cầu (xem lệnh `/vehinh`).
 
 ## Lệnh nhanh
