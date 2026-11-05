@@ -585,7 +585,7 @@ async function ask(message, modeOverride){
     }
   } catch (e){
     bubble.classList.add('error');
-    bubble.textContent = 'Không kết nối được máy chủ: ' + e.message;
+    bubble.textContent = e.message;
   } finally {
     setBusy(false);
     scrollDown();
@@ -623,7 +623,7 @@ async function drawFigure(message){
     }
   } catch (err){
     bubble.classList.add('error');
-    bubble.textContent = 'Không kết nối được máy chủ: ' + err.message;
+    bubble.textContent = err.message;
   } finally {
     setBusy(false);
     scrollDown();
@@ -682,7 +682,16 @@ apiBtn.addEventListener('click', () => {
     apiBase
   );
   if (value === null) return;
-  apiBase = normalizeBase(value);
+  const next = normalizeBase(value);
+  if (next && !/^https?:\/\//i.test(next)){
+    addNotice('Địa chỉ máy chủ phải bắt đầu bằng https:// — ví dụ https://abc.trycloudflare.com');
+    return;
+  }
+  if (/dash\.cloudflare\.com/i.test(next)){
+    addNotice('Đó là trang quản trị Cloudflare, không phải máy chủ API. Dán URL tunnel dạng https://abc.trycloudflare.com');
+    return;
+  }
+  apiBase = next;
   if (apiBase) localStorage.setItem(API_STORAGE, apiBase);
   else localStorage.removeItem(API_STORAGE);
   refreshApiBtn();
