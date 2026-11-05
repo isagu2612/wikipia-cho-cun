@@ -307,7 +307,8 @@ let   busy     = false;
 /* ---------- Địa chỉ máy chủ API ----------
    Chạy server.py cùng máy: để trống = dùng chung domain.
    Chạy qua Cloudflare Worker: đặt URL tunnel bằng nút ⚙ hoặc ?api=<url>. */
-const API_STORAGE = 'toan-chatbox-api';
+const API_STORAGE = 'toan-chatbox-api-v2';
+const API_DEFAULT = 'https://isolating-projector-dupe.ngrok-free.dev';
 const API_TIMEOUT = 95000;   // Cloudflare cắt request ở ~100s
 
 function normalizeBase(v){
@@ -319,7 +320,10 @@ let apiBase = (() => {
     localStorage.setItem(API_STORAGE, fromUrl);
     return fromUrl;
   }
-  return normalizeBase(localStorage.getItem(API_STORAGE) || '');
+  const saved = normalizeBase(localStorage.getItem(API_STORAGE));
+  if (saved) return saved;
+  const local = ['127.0.0.1', 'localhost'].includes(location.hostname) || location.protocol === 'file:';
+  return local ? '' : API_DEFAULT;
 })();
 
 /* ---------- Chế độ và lệnh ---------- */
@@ -515,7 +519,10 @@ async function postJson(url, payload){
   try {
     res = await fetch(apiBase + url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': '1'
+      },
       body: JSON.stringify(payload),
       signal: ctrl.signal
     });

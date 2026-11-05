@@ -31,15 +31,13 @@ Bản trên `https://sgk.ncd-congdinh2612.workers.dev` chỉ là **giao diện t
 phần giải bài vẫn chạy trên máy bạn. Cách nối hai bên:
 
 1. Bấm đúp `share.bat`.
-2. Script khởi động `server.py` + `cloudflared`, rồi in ra link dạng
-   `https://sgk.ncd-congdinh2612.workers.dev/?api=https://xxx.trycloudflare.com`
-   và copy sẵn vào clipboard.
-3. Mở link đó (hoặc gửi cho người khác). Trình duyệt tự lưu địa chỉ API vào
-   `localStorage`; lần sau chỉ cần mở link gốc.
-4. Giữ cửa sổ `share.bat` mở. Tunnel đổi URL mỗi lần chạy → chạy lại script và
-   dùng link mới.
+2. Script khởi động `server.py` + `ngrok http 8765`. ngrok dùng domain cố định
+   gắn với tài khoản (`API_DEFAULT` trong `index.html`), nên **link công khai
+   không bao giờ đổi**: chỉ cần chia sẻ `https://sgk.ncd-congdinh2612.workers.dev`.
+3. Giữ cửa sổ `share.bat` mở; Ctrl+C để dừng tunnel.
 
-Đổi địa chỉ API thủ công: bấm nút **⚙** ở góc phải tiêu đề.
+Đổi địa chỉ API thủ công: bấm nút **⚙** ở góc phải tiêu đề (hoặc mở link với
+`?api=<url>` để ghi đè một lần).
 
 Lưu ý: máy phải bật và 9Router/OpenCode phải chạy; request quá ~95 giây sẽ bị
 Cloudflare cắt (script không tự đổi `REQUEST_TIMEOUT`, đặt biến môi trường này
@@ -48,7 +46,8 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 ## Yêu cầu
 
 - **OpenCode CLI** đã cài và đã đăng nhập provider (app gọi `opencode run`).
-- **cloudflared** (chỉ cần khi dùng `share.bat`): `winget install Cloudflare.cloudflared`.
+- **ngrok** (chỉ cần khi dùng `share.bat`): `winget install Ngrok.Ngrok`, sau đó
+  `ngrok config add-authtoken <token>` và dùng domain free cố định của tài khoản.
 - **Python 3.10+** (chỉ dùng thư viện chuẩn để chạy app).
 
 ## Cấu trúc
@@ -66,7 +65,7 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `prompt.md` | System prompt của agent `toan` |
 | `figure.md` | System prompt của agent `hinhve` |
 | `start.bat` | Chạy nhanh trên Windows |
-| `share.bat` / `share.ps1` | Chạy server + tunnel, in link web có `?api=` |
+| `share.bat` / `share.ps1` | Chạy server + ngrok để link web cố định hoạt động |
 
 ## Cách hoạt động
 
