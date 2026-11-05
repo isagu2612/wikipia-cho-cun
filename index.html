@@ -480,6 +480,22 @@ function setBusy(value){
   chat.setAttribute('aria-busy', value ? 'true' : 'false');
 }
 
+async function postJson(url, payload){
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) {}
+  if (!data){
+    throw new Error('Máy chủ trả về dữ liệu không hợp lệ (HTTP ' + res.status + '). '
+      + 'Có thể API chưa chạy trên domain này hoặc bị timeout.');
+  }
+  return { res, data };
+}
+
 async function ask(message, modeOverride){
   if (busy) return;
   lastAsked = message;
@@ -492,12 +508,7 @@ async function ask(message, modeOverride){
 
   const t0 = Date.now();
   try {
-    const res = await fetch('/api/ask', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message, mode: modeOverride || mode })
-    });
-    const data = await res.json();
+    const { res, data } = await postJson('/api/ask', { message, mode: modeOverride || mode });
 
     if (!res.ok || (data.error && !data.answer)){
       bubble.classList.add('error');
@@ -553,12 +564,7 @@ async function drawFigure(message){
   scrollDown();
 
   try {
-    const res = await fetch('/api/figure', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: target })
-    });
-    const data = await res.json();
+    const { data } = await postJson('/api/figure', { message: target });
     if (data.type === 'book'){
       bubble.innerHTML = '';
       bubble.classList.add('reveal');

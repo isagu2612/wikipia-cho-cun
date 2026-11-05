@@ -21,6 +21,10 @@ Mặc định mở tại <http://127.0.0.1:8765>. Tùy chọn:
 python server.py --port 9000 --no-browser
 ```
 
+> **Nên chạy `start.bat` bằng cách bấm đúp** (terminal riêng), để app không bị tắt
+> khi OpenCode khởi động lại. Nếu cổng đã có app chạy sẵn, `start.bat` chỉ mở
+> trình duyệt chứ không báo lỗi.
+
 ## Yêu cầu
 
 - **OpenCode CLI** đã cài và đã đăng nhập provider (app gọi `opencode run`).
@@ -114,6 +118,10 @@ Có thể kèm câu hỏi ngay sau lệnh, ví dụ `/chitiet bài 1a trang 5`, 
 - **Lời giải báo “trang trống” / thiếu nội dung**: app đang dùng shim `opencode.cmd`,
   mà `cmd.exe` cắt tham số tại ký tự xuống dòng. `server.py` đã tự ưu tiên
   `opencode.exe`; nếu vẫn gặp, đặt `OPENCODE_BIN` trỏ tới `opencode.exe` thật.
+- **Báo “Unexpected end of JSON input” / “Máy chủ trả về dữ liệu không hợp lệ”**:
+  app bị tắt hoặc khởi động lại đúng lúc đang chờ trả lời (thường do `start.bat`
+  chạy trong terminal của OpenCode, rồi OpenCode restart). Bấm đúp `start.bat`
+  để app có cửa sổ riêng, sau đó tải lại trang bằng `Ctrl+F5`.
 - **Lỗi “Không thấy pages.json”**: chạy `python extract_pages.py` (cần `pip install pymupdf`).
 - **Công thức hiện dạng thô**: máy cần Internet để tải KaTeX/marked từ CDN.
 

@@ -21,6 +21,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -194,6 +195,12 @@ def find_opencode() -> str:
             return hit
 
     return "opencode"
+
+
+def port_in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((host, port)) == 0
 
 
 def is_losing_shim(binary: str) -> bool:
@@ -370,6 +377,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, b"Thieu index.html", "text/plain; charset=utf-8")
                 return
             self._send(200, INDEX_FILE.read_bytes(), "text/html; charset=utf-8")
+        elif path == "/api/health":
+            self._json(200, {"ok": True, "pages": len(self.pages)})
         elif path.startswith("/figures/"):
             name = path[len("/figures/"):]
             if not re.fullmatch(r"fig_[0-9a-f]{12}\.png", name):
@@ -418,6 +427,17 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, {"type": "svg", "page": page_no, "svg": svg})
 
     def do_POST(self) -> None:
+        # Luôn trả JSON: nếu handler ném lỗi thì trình duyệt không nhận body rỗng
+        # (body rỗng gây "Unexpected end of JSON input" ở client).
+        try:
+            self._route_post()
+        except Exception as exc:
+            try:
+                self._json(500, {"error": f"Lỗi máy chủ: {exc}"})
+            except Exception:
+                pass
+
+    def _route_post(self) -> None:
         path = self.path.split("?", 1)[0]
         if path not in ("/api/ask", "/api/figure"):
             self._send(404, b"Not found", "text/plain; charset=utf-8")
@@ -538,8 +558,13 @@ def main() -> None:
     args = parser.parse_args()
 
     Handler.pages = load_pages()
-    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     url = f"http://{args.host}:{args.port}/"
+    if port_in_use(args.host, args.port):
+        print(f"App có vẻ đã chạy sẵn tại {url}")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return
+    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     binary = find_opencode()
     print(f"Chatbox Toán 12 - Tập 2 đang chạy tại {url}")
     print(f"Model: {MODEL}   |   Số trang dữ liệu: {len(Handler.pages)}")
