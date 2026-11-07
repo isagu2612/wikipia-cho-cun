@@ -35,7 +35,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 BASE = Path(__file__).resolve().parent
-PAGES_FILE = BASE / "pages.json"
+BOOKS_FILE = BASE / "books.json"
 INDEX_FILE = BASE / "index.html"
 
 MODEL = os.environ.get("OPENCODE_TOAN_MODEL", "9router/cmc/deepseek/deepseek-v4.1-flash")
@@ -151,15 +151,64 @@ COORD_RE = re.compile(
 )
 
 
-def load_pages() -> list[str]:
-    if not PAGES_FILE.exists():
-        sys.exit(
-            f"Không thấy {PAGES_FILE.name}. Hãy chạy trước:\n"
-            f"    python extract_pages.py\n"
-            f"để tạo dữ liệu trang sách từ sgkII.pdf."
-        )
-    data = json.loads(PAGES_FILE.read_text(encoding="utf-8"))
-    return data["pages"]
+DEFAULT_BOOK = {
+    "id": "toan-12-t2",
+    "name": "Toán 12 – Tập 2",
+    "short": "Tập 2",
+    "pages": "pages.json",
+    "pdf": "sgkII.pdf",
+}
+
+_BOOK_PAGES: dict[str, list[str]] = {}
+_BOOK_LOCK = threading.Lock()
+
+
+def load_books() -> list[dict]:
+    """Đọc books.json. Thiếu hoặc hỏng thì dùng đúng một sách mặc định."""
+    if not BOOKS_FILE.exists():
+        return [dict(DEFAULT_BOOK)]
+    try:
+        data = json.loads(BOOKS_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return [dict(DEFAULT_BOOK)]
+
+    books: list[dict] = []
+    for item in data.get("books", []):
+        if not isinstance(item, dict):
+            continue
+        book = {
+            "id": str(item.get("id") or "").strip(),
+            "name": str(item.get("name") or "").strip(),
+            "short": str(item.get("short") or "").strip(),
+            "pages": str(item.get("pages") or "").strip(),
+            "pdf": str(item.get("pdf") or "").strip(),
+        }
+        if book["id"] and book["name"] and book["pages"]:
+            books.append(book)
+    return books or [dict(DEFAULT_BOOK)]
+
+
+def book_pages(book: dict) -> list[str]:
+    """Nội dung từng trang của một sách (đọc một lần, giữ trong bộ nhớ)."""
+    with _BOOK_LOCK:
+        cached = _BOOK_PAGES.get(book["id"])
+    if cached is not None:
+        return cached
+    path = (BASE / book["pages"]).resolve()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    pages = data["pages"]
+    with _BOOK_LOCK:
+        _BOOK_PAGES[book["id"]] = pages
+    return pages
+
+
+def book_pdf(book: dict) -> Path | None:
+    """Đường dẫn PDF gốc để cắt hình (nếu có)."""
+    name = book.get("pdf") or ""
+    if not name:
+        return None
+    path = (BASE / name).resolve()
+    return path if path.is_file() else None
 
 
 def find_opencode() -> str:
@@ -266,7 +315,9 @@ def strip_figures(text: str) -> str:
     return text.strip()
 
 
-def analyze_page(page_no: int | None, message: str) -> dict:
+def analyze_page(
+    page_no: int | None, message: str, pdf_path: Path | None = None
+) -> dict:
     """Cắt hình trong sách + lấy đoạn đề bài của đúng bài."""
     if page_no is None:
         return {"text": "", "figure": None}
@@ -284,7 +335,8 @@ def analyze_page(page_no: int | None, message: str) -> dict:
             label = ("Ví dụ", int(match.group(2)))
 
     try:
-        return figures.analyze(page_no, label)
+        return figures.analyze(page_no, label, pdf_path) if pdf_path \
+            else figures.analyze(page_no, label)
     except Exception:
         return {"text": "", "figure": None}
 
@@ -354,6 +406,15 @@ def run_opencode(prompt: str, agent: str = AGENT) -> tuple[str, str | None]:
 class Handler(BaseHTTPRequestHandler):
     server_version = "ToanChatbox/1.0"
     pages: list[str] = []
+    books: list[dict] = []
+
+    def _book(self, book_id: str) -> dict | None:
+        if not book_id:
+            return self.books[0] if self.books else None
+        for book in self.books:
+            if book["id"] == book_id:
+                return book
+        return None
 
     def log_message(self, fmt: str, *args) -> None:  # giữ log gọn
         sys.stderr.write("[%s] %s\n" % (time.strftime("%H:%M:%S"), fmt % args))
@@ -390,6 +451,21 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, INDEX_FILE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/health":
             self._json(200, {"ok": True, "pages": len(self.pages)})
+        elif path == "/api/books":
+            items = []
+            for book in self.books:
+                try:
+                    count = len(book_pages(book))
+                except (OSError, KeyError, json.JSONDecodeError):
+                    count = 0
+                items.append({
+                    "id": book["id"],
+                    "name": book["name"],
+                    "short": book.get("short") or book["name"],
+                    "pages": count,
+                })
+            default = self.books[0]["id"] if self.books else ""
+            self._json(200, {"books": items, "default": default})
         elif path.startswith("/figures/"):
             name = path[len("/figures/"):]
             if not re.fullmatch(r"fig_[0-9a-f]{12}\.png", name):
@@ -404,10 +480,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, b"Not found", "text/plain; charset=utf-8")
 
     def _figure_response(
-        self, message: str, page_no: int | None, page_text: str | None
+        self,
+        message: str,
+        page_no: int | None,
+        page_text: str | None,
+        pdf_path: Path | None,
     ) -> None:
         """Vẽ/chọn hình cho một bài (dùng cho lệnh /vehinh)."""
-        info = analyze_page(page_no, message)
+        info = analyze_page(page_no, message, pdf_path)
         if info.get("figure"):
             self._json(200, {
                 "type": "book",
@@ -472,25 +552,38 @@ class Handler(BaseHTTPRequestHandler):
         if mode not in MODES:
             mode = DEFAULT_MODE
 
+        book = self._book((payload.get("book") or "").strip())
+        if book is None:
+            self._json(400, {"error": "Không tìm thấy tài liệu này trong thư viện."})
+            return
+        try:
+            pages = book_pages(book)
+        except (OSError, KeyError, json.JSONDecodeError):
+            self._json(500, {
+                "error": f"Không đọc được dữ liệu trang của “{book['name']}”."
+            })
+            return
+        pdf_path = book_pdf(book)
+
         match = PAGE_RE.search(message)
         page_no = int(match.group(1)) if match else None
         page_text: str | None = None
 
         if page_no is not None:
-            if not (1 <= page_no < len(self.pages)):
+            if not (1 <= page_no < len(pages)):
                 self._json(400, {
                     "page": page_no,
-                    "error": f"Sách Tập 2 chỉ có các trang 1-{len(self.pages) - 1}. "
+                    "error": f"“{book['name']}” chỉ có các trang 1-{len(pages) - 1}. "
                              f"Bạn kiểm tra lại số trang nhé.",
                 })
                 return
-            page_text = self.pages[page_no]
+            page_text = pages[page_no]
 
         if path == "/api/figure":
-            self._figure_response(message, page_no, page_text)
+            self._figure_response(message, page_no, page_text, pdf_path)
             return
 
-        cache_key = f"{page_no}|{mode}|{message}"
+        cache_key = f"{book['id']}|{page_no}|{mode}|{message}"
         cached = cache_get(cache_key)
         if cached is not None:
             hit = dict(cached)
@@ -503,7 +596,7 @@ class Handler(BaseHTTPRequestHandler):
         wants_figure = bool(DRAW_REQUEST_RE.search(message))
         allow_figure = wants_figure  # chỉ vẽ khi người dùng yêu cầu
 
-        info = analyze_page(page_no, message)
+        info = analyze_page(page_no, message, pdf_path)
         book_fig = info.get("figure") if allow_figure else None
         coordinate = is_coordinate_context(message, info.get("text", ""))
         geometry = looks_like_geometry(message, page_text)
@@ -545,6 +638,7 @@ class Handler(BaseHTTPRequestHandler):
         elapsed_ms = int((time.time() - started) * 1000)
 
         result = {
+            "book": book["id"],
             "page": page_no,
             "pageText": page_text,
             "answer": answer,
@@ -568,7 +662,15 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    Handler.pages = load_pages()
+    Handler.books = load_books()
+    try:
+        Handler.pages = book_pages(Handler.books[0])
+    except (OSError, KeyError, json.JSONDecodeError):
+        sys.exit(
+            f"Không đọc được {Handler.books[0]['pages']}. Hãy chạy trước:\n"
+            f"    python extract_pages.py\n"
+            f"để tạo dữ liệu trang sách từ PDF."
+        )
     url = f"http://{args.host}:{args.port}/"
     if port_in_use(args.host, args.port):
         print(f"App có vẻ đã chạy sẵn tại {url}")
@@ -578,7 +680,13 @@ def main() -> None:
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     binary = find_opencode()
     print(f"Chatbox Toán 12 - Tập 2 đang chạy tại {url}")
-    print(f"Model: {MODEL}   |   Số trang dữ liệu: {len(Handler.pages)}")
+    print(f"Model: {MODEL}")
+    for book in Handler.books:
+        try:
+            count = len(book_pages(book))
+        except (OSError, KeyError, json.JSONDecodeError):
+            count = 0
+        print(f"Tài liệu: {book['name']} ({count} trang)")
     print(f"OpenCode: {binary}")
     if is_losing_shim(binary):
         print("CẢNH BÁO: đang dùng shim .cmd/.ps1; nội dung nhiều dòng có thể bị cắt.")

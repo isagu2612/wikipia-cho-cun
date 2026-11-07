@@ -8,7 +8,7 @@ file PDF) TRÙNG với SỐ TRANG IN ở chân trang. Kiểm chứng:
     - vị trí 344-> trang in số 344 (§3. Ôn tập chương 6)
 Nên: nội dung trang sách số N nằm ở pages.pages[N].
 
-Chạy:  python extract_pages.py [đường_dẫn_sgkII.pdf]
+Chạy:  python extract_pages.py [đường_dẫn_pdf] [đường_dẫn_pages.json]
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def main() -> None:
     pages = [doc[i].get_text("text", sort=True).strip() for i in range(doc.page_count)]
     doc.close()
 
-    out_path = BASE / "pages.json"
+    out_path = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else BASE / "pages.json"
     data = {
         "source": pdf_path.name,
         "count": len(pages),

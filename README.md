@@ -57,6 +57,7 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `server.py` | Web server local + gọi OpenCode CLI sinh lời giải |
 | `index.html` | Giao diện chat, hiển thị công thức bằng KaTeX |
 | `pages.json` | Nội dung từng trang sách, đã trích sẵn từ `sgkII.pdf` |
+| `books.json` | Danh sách tài liệu hiển thị ở cột **Thư viện** bên trái |
 | `sgkII.pdf` | Sách gốc, dùng để cắt hình trong sách và trích lại `pages.json` |
 | `extract_pages.py` | Tạo lại `pages.json` từ PDF (cần `pymupdf`) |
 | `figures.py` | Cắt hình có sẵn trong SGK (cần `pymupdf`) |
@@ -66,6 +67,45 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `figure.md` | System prompt của agent `hinhve` |
 | `start.bat` | Chạy nhanh trên Windows |
 | `share.bat` / `share.ps1` | Chạy server + ngrok để link web cố định hoạt động |
+
+## Thư viện tài liệu
+
+Cột **Thư viện** bên trái liệt kê các tài liệu trong `books.json`:
+
+```json
+{
+  "books": [
+    {
+      "id": "toan-12-t2",
+      "name": "Toán 12 – Tập 2",
+      "short": "Tập 2",
+      "pages": "pages.json",
+      "pdf": "sgkII.pdf"
+    }
+  ]
+}
+```
+
+- `id`: mã không dấu, dùng trong API (`book`).
+- `pages`: file nội dung từng trang (do `extract_pages.py` tạo).
+- `pdf`: file gốc, dùng để cắt hình trong sách (bỏ trống nếu không cần).
+- Sách đang chọn được lưu trong trình duyệt; đổi sách sẽ đặt lại "bài gần nhất"
+  của `/chitiet` và `/vehinh`.
+- API: `GET /api/books` trả danh sách; `/api/ask` và `/api/figure` nhận thêm
+  trường `book`.
+
+**Thêm một tài liệu mới** (thủ công, chưa có giao diện upload):
+
+```bat
+copy sach-moi.pdf .
+python extract_pages.py sach-moi.pdf sach-moi-pages.json
+```
+
+rồi thêm một mục vào `books.json` (trỏ `pages`/`pdf` tới hai file vừa có) và
+khởi động lại `server.py`.
+
+> Lưu ý: quy ước "số trang in = chỉ mục mảng" chỉ đúng với từng PDF đã kiểm tra.
+> Nếu sách mới bị lệch trang, kiểm tra lại bằng vài trang đầu trước khi dùng.
 
 ## Cách hoạt động
 

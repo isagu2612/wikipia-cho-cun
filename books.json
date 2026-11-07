@@ -1,0 +1,11 @@
+{
+  "books": [
+    {
+      "id": "toan-12-t2",
+      "name": "Toán 12 – Tập 2",
+      "short": "Tập 2",
+      "pages": "pages.json",
+      "pdf": "sgkII.pdf"
+    }
+  ]
+}

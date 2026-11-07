@@ -27,6 +27,62 @@
     -webkit-font-smoothing:antialiased;
   }
 
+  /* ---------- Bố cục: thư viện bên trái ---------- */
+  .shell{display:flex; flex:1 1 auto; min-height:0; width:100%; overflow:hidden}
+  .main{flex:1 1 auto; display:flex; flex-direction:column; min-width:0; min-height:0}
+
+  .library{
+    flex:0 0 268px; width:268px; min-height:0;
+    display:flex; flex-direction:column; gap:10px;
+    background:var(--surface); border-right:1px solid var(--line);
+    padding:16px 12px 14px;
+  }
+  .lib-head{display:flex; align-items:center; justify-content:space-between; padding:0 6px 2px}
+  .lib-title{
+    font-size:11.5px; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .lib-close{
+    display:none; border:0; background:transparent; color:var(--muted);
+    font-size:14px; line-height:1; cursor:pointer; padding:5px 7px; border-radius:8px;
+    transition:color .15s, background .15s;
+  }
+  .lib-close:hover{color:var(--ink); background:var(--soft)}
+  .lib-list{
+    flex:1 1 auto; overflow-y:auto; display:flex; flex-direction:column;
+    gap:6px; padding:2px; margin:0 -2px;
+  }
+  .book{
+    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    border:1px solid transparent; background:transparent; border-radius:12px;
+    padding:9px 10px; cursor:pointer; font:inherit; color:var(--ink);
+    transition:background .18s, border-color .18s, transform .12s;
+  }
+  .book:hover{background:var(--soft)}
+  .book:active{transform:scale(.985)}
+  .book[aria-pressed="true"]{background:var(--soft); border-color:var(--line-strong)}
+  .book-cover{
+    flex:0 0 28px; width:28px; height:36px; border-radius:4px 7px 7px 4px;
+    background:var(--ink); color:#fff; display:grid; place-items:center;
+    box-shadow:inset 2px 0 0 rgba(255,255,255,.28);
+  }
+  .book-cover svg{width:15px; height:15px}
+  .book-text{min-width:0; display:flex; flex-direction:column; gap:2px}
+  .book-name{font-size:13.5px; font-weight:600; line-height:1.25; overflow-wrap:anywhere}
+  .book-meta{font-size:11.5px; color:var(--muted)}
+  .lib-foot{
+    padding:9px 6px 0; border-top:1px solid var(--line);
+    font-size:11.5px; color:var(--muted); line-height:1.5;
+  }
+  .lib-toggle{
+    display:none; flex:0 0 auto; align-items:center; gap:7px; height:32px; padding:0 12px;
+    border:1.5px solid var(--line-strong); background:var(--surface); color:var(--ink-2);
+    border-radius:999px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+    transition:color .15s, border-color .15s;
+  }
+  .lib-toggle:hover{color:var(--ink); border-color:var(--ink)}
+  .scrim{display:none}
+
   /* ---------- Header ---------- */
   header{
     flex:0 0 auto; background:var(--surface);
@@ -243,6 +299,29 @@
     }
   }
 
+  @media (max-width:900px){
+    .header-inner{gap:10px 8px}
+    .brand{flex:1 1 100%}
+    .lib-toggle{order:1}
+    .api-btn{order:2; margin-left:auto}
+    .mode-switch{order:3; flex:1 1 100%; width:100%; margin-top:2px}
+    .library{
+      position:fixed; inset:0 auto 0 0; z-index:40; width:286px; max-width:84vw;
+      transform:translateX(-100%);
+      transition:transform .26s cubic-bezier(.4,0,.2,1);
+      box-shadow:0 0 44px rgba(0,0,0,.18);
+    }
+    .shell.lib-open .library{transform:none}
+    .lib-close{display:block}
+    .lib-toggle{display:inline-flex}
+    .scrim{
+      display:block; position:fixed; inset:0; z-index:30;
+      background:rgba(0,0,0,.32); opacity:0; pointer-events:none;
+      transition:opacity .26s ease;
+    }
+    .shell.lib-open .scrim{opacity:1; pointer-events:auto}
+  }
+
   @media (max-width:560px){
     header{padding:12px 14px}
     .brand h1{font-size:15px}
@@ -256,6 +335,17 @@
 </style>
 </head>
 <body>
+<div class="shell" id="shell">
+  <aside class="library" id="library" aria-label="Thư viện tài liệu">
+    <div class="lib-head">
+      <span class="lib-title">Thư viện</span>
+      <button type="button" class="lib-close" id="libClose" aria-label="Đóng thư viện">✕</button>
+    </div>
+    <div class="lib-list" id="libList" role="list"></div>
+    <div class="lib-foot" id="libFoot">Chọn tài liệu để hỏi bài. Số trang hiển thị theo từng sách.</div>
+  </aside>
+  <div class="scrim" id="scrim" aria-hidden="true"></div>
+  <div class="main">
 <header>
   <div class="header-inner">
     <div class="brand">
@@ -267,9 +357,13 @@
       </div>
       <div>
         <h1>Giải bài tập SGK Toán 12</h1>
-        <p>Tập 2 · gõ tên bài kèm số trang, ví dụ “bài 1a trang 5”</p>
+        <p id="brandSub">Tập 2 · gõ tên bài kèm số trang, ví dụ “bài 1a trang 5”</p>
       </div>
     </div>
+    <button type="button" class="lib-toggle" id="libToggle" aria-label="Mở thư viện tài liệu">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Thư viện
+    </button>
     <button type="button" class="api-btn" id="apiBtn" title="Đặt địa chỉ máy chủ API" aria-label="Đặt địa chỉ máy chủ API">⚙</button>
     <div class="mode-switch" id="modeSwitch" data-mode="concise" role="group" aria-label="Chế độ trả lời">
       <span class="mode-thumb" aria-hidden="true"></span>
@@ -291,6 +385,8 @@
   </form>
   <div class="hint">Enter để gửi · Shift + Enter để xuống dòng · <b>/chitiet</b> giải lại bài gần nhất ở chế độ Lí thuyết · <b>/vehinh</b> vẽ hình cho bài gần nhất.</div>
 </footer>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
@@ -326,6 +422,124 @@ let apiBase = (() => {
   return local ? '' : API_DEFAULT;
 })();
 
+/* ---------- Thư viện tài liệu ---------- */
+const shell       = document.getElementById('shell');
+const libList     = document.getElementById('libList');
+const libToggle   = document.getElementById('libToggle');
+const libClose    = document.getElementById('libClose');
+const scrim       = document.getElementById('scrim');
+const brandSub    = document.getElementById('brandSub');
+const BOOK_STORAGE = 'toan-chatbox-book';
+
+const BOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+
+let books = [];
+let bookId = '';
+let lastAsked = '';
+
+function setLibraryOpen(open){
+  shell.classList.toggle('lib-open', open);
+}
+
+function currentBook(){
+  return books.find(b => b.id === bookId) || books[0] || null;
+}
+
+function updateBrand(){
+  const book = currentBook();
+  brandSub.textContent = (book ? book.name + ' · ' : '')
+    + 'gõ tên bài kèm số trang, ví dụ “bài 1a trang 5”';
+}
+
+function renderBooks(){
+  libList.innerHTML = '';
+  if (!books.length){
+    const msg = document.createElement('div');
+    msg.className = 'lib-foot';
+    msg.textContent = 'Chưa tải được danh sách tài liệu.';
+    libList.appendChild(msg);
+    return;
+  }
+  books.forEach(book => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'book';
+    btn.setAttribute('role', 'listitem');
+    btn.setAttribute('aria-pressed', book.id === bookId ? 'true' : 'false');
+
+    const cover = document.createElement('span');
+    cover.className = 'book-cover';
+    cover.setAttribute('aria-hidden', 'true');
+    cover.innerHTML = BOOK_ICON;
+
+    const text = document.createElement('span');
+    text.className = 'book-text';
+
+    const name = document.createElement('span');
+    name.className = 'book-name';
+    name.textContent = book.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'book-meta';
+    meta.textContent = book.pages ? book.pages + ' trang' : 'chưa có dữ liệu trang';
+
+    text.appendChild(name);
+    text.appendChild(meta);
+    btn.appendChild(cover);
+    btn.appendChild(text);
+    btn.addEventListener('click', () => selectBook(book.id));
+    libList.appendChild(btn);
+  });
+}
+
+function applyBook(id){
+  const found = books.find(b => b.id === id);
+  bookId = found ? found.id : (books[0] ? books[0].id : '');
+  localStorage.setItem(BOOK_STORAGE, bookId);
+  lastAsked = '';
+  updateBrand();
+  renderBooks();
+}
+
+function selectBook(id){
+  const changed = id !== bookId;
+  applyBook(id);
+  setLibraryOpen(false);
+  const book = currentBook();
+  if (changed && book) addNotice('Đã chọn tài liệu: ' + book.name);
+}
+
+async function loadBooks(){
+  try {
+    const res = await fetch(apiBase + '/api/books', {
+      headers: { 'ngrok-skip-browser-warning': '1' }
+    });
+    const data = await res.json();
+    if (Array.isArray(data.books) && data.books.length){
+      books = data.books.map(b => ({
+        id: String(b.id || ''),
+        name: String(b.name || 'Tài liệu'),
+        pages: Number(b.pages) || 0
+      }));
+    }
+  } catch (e){}
+
+  if (!books.length){
+    // Không lấy được danh sách: vẫn hỏi được bằng tài liệu mặc định của máy chủ.
+    books = [{ id: '', name: 'Tài liệu mặc định', pages: 0 }];
+  }
+
+  const saved = localStorage.getItem(BOOK_STORAGE) || '';
+  applyBook(books.some(b => b.id === saved) ? saved : books[0].id);
+}
+
+libToggle.addEventListener('click', () => setLibraryOpen(true));
+libClose.addEventListener('click', () => setLibraryOpen(false));
+scrim.addEventListener('click', () => setLibraryOpen(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') setLibraryOpen(false);
+});
+
 /* ---------- Chế độ và lệnh ---------- */
 const MODE_STORAGE = 'toan-chatbox-mode';
 const CHI_TIET_CMDS = ['/chitiet', '/chi tiết'];
@@ -334,7 +548,7 @@ const VE_HINH_CMDS  = ['/vehinh', '/vẽ hình'];
 let mode = localStorage.getItem(MODE_STORAGE);
 if (mode !== 'concise' && mode !== 'detailed' && mode !== 'fast') mode = 'concise';
 
-let lastAsked = '';
+let thumbPlaced = false;
 
 function updateModeUI(){
   modeSwitch.dataset.mode = mode;
@@ -346,6 +560,16 @@ function updateModeUI(){
   const active = modeSwitch.querySelector('.mode-btn.active');
   const thumb = modeSwitch.querySelector('.mode-thumb');
   if (active && thumb){
+    // Lần đầu: đặt vị trí ngay, không chạy hiệu ứng để khỏi thấy "viên đen lớn dần".
+    if (!thumbPlaced){
+      thumb.style.transition = 'none';
+      thumb.style.width = active.offsetWidth + 'px';
+      thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+      void thumb.offsetWidth;
+      thumb.style.transition = '';
+      thumbPlaced = true;
+      return;
+    }
     thumb.style.width = active.offsetWidth + 'px';
     thumb.style.transform = 'translateX(' + active.offsetLeft + 'px)';
   }
@@ -559,7 +783,7 @@ async function ask(message, modeOverride){
 
   const t0 = Date.now();
   try {
-    const { res, data } = await postJson('/api/ask', { message, mode: modeOverride || mode });
+    const { res, data } = await postJson('/api/ask', { message, mode: modeOverride || mode, book: bookId });
 
     if (!res.ok || (data.error && !data.answer)){
       bubble.classList.add('error');
@@ -615,7 +839,7 @@ async function drawFigure(message){
   scrollDown();
 
   try {
-    const { data } = await postJson('/api/figure', { message: target });
+    const { data } = await postJson('/api/figure', { message: target, book: bookId });
     if (data.type === 'book'){
       bubble.innerHTML = '';
       bubble.classList.add('reveal');
@@ -705,8 +929,11 @@ apiBtn.addEventListener('click', () => {
   addNotice(apiBase ? 'Đã đặt máy chủ API: ' + apiBase : 'Dùng máy chủ cùng domain.');
 });
 
-updateModeUI();
+if (window.ResizeObserver) new ResizeObserver(updateModeUI).observe(modeSwitch);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateModeUI);
+requestAnimationFrame(updateModeUI);
 refreshApiBtn();
+loadBooks();
 if (apiBtn.classList.contains('warn')){
   addNotice('Chưa đặt địa chỉ máy chủ. Bấm nút ⚙ ở góc phải để dán URL tunnel.');
 }

@@ -212,12 +212,13 @@ def find_figure(page, label=None) -> pymupdf.Rect | None:
     return figs[0][0]
 
 
-def crop_figure(page, box: pymupdf.Rect, dpi: int = 200, pad: float = 4.0) -> tuple[Path, str]:
+def crop_figure(page, box: pymupdf.Rect, dpi: int = 200, pad: float = 4.0,
+                key_prefix: str = "") -> tuple[Path, str]:
     clip = pymupdf.Rect(box.x0 - pad, box.y0 - pad, box.x1 + pad, box.y1 + pad) & page.rect
     pix = page.get_pixmap(clip=clip, dpi=dpi)
     CACHE_DIR.mkdir(exist_ok=True)
-    key = "%d_%d_%d_%d_%d_%d_%d" % (
-        page.number, round(box.x0), round(box.y0), round(box.x1), round(box.y1),
+    key = "%s_%d_%d_%d_%d_%d_%d_%d" % (
+        key_prefix, page.number, round(box.x0), round(box.y0), round(box.x1), round(box.y1),
         dpi, round(pad)
     )
     name = "fig_" + hashlib.md5(key.encode()).hexdigest()[:12] + ".png"
@@ -237,7 +238,7 @@ def extract_figure(page_no: int, label=None, pdf_path: Path | str = DEFAULT_PDF)
         box = find_figure(page, label)
         if box is None:
             return None
-        return crop_figure(page, box)
+        return crop_figure(page, box, key_prefix=Path(pdf_path).stem)
     finally:
         doc.close()
 
