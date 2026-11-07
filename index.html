@@ -78,17 +78,27 @@
     display:inline-flex; flex:0 0 auto; align-items:center; gap:7px; height:32px; padding:0 12px;
     border:1.5px solid var(--line-strong); background:var(--surface); color:var(--ink-2);
     border-radius:999px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
-    transition:color .15s, border-color .15s, background .15s;
+    transition:color .15s, border-color .15s, background .15s, transform .12s ease;
   }
   .lib-toggle:hover{color:var(--ink); border-color:var(--ink)}
+  .lib-toggle:active{transform:scale(.93)}
+  .lib-toggle svg{transition:transform .32s cubic-bezier(.4,0,.2,1)}
   .lib-toggle[aria-expanded="false"]{color:var(--muted)}
   .scrim{display:none}
 
-  /* Desktop: nút Thư viện thu gọn thành icon, bấm để ẩn/hiện cột trái */
+  /* Desktop: nút Thư viện thu gọn thành icon, bấm để trượt cột trái ra vào */
   @media (min-width:901px){
     .lib-toggle{width:32px; height:32px; padding:0; border-radius:50%; justify-content:center}
     .lib-toggle .lib-label{display:none}
-    .shell.lib-hidden .library{display:none}
+    .shell.lib-hidden .lib-toggle svg{transform:rotate(90deg)}
+    .library{
+      overflow:hidden;
+      transition:margin-left .32s cubic-bezier(.4,0,.2,1), visibility 0s;
+    }
+    .shell.lib-hidden .library{
+      margin-left:-268px; visibility:hidden;
+      transition:margin-left .32s cubic-bezier(.4,0,.2,1), visibility 0s .32s;
+    }
   }
 
   /* ---------- Header ---------- */
