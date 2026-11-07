@@ -161,9 +161,10 @@ DEFAULT_BOOK = {
 
 _BOOK_PAGES: dict[str, list[str]] = {}
 _BOOK_LOCK = threading.Lock()
+_BOOKS_CACHE: dict = {"mtime": None, "books": []}
 
 
-def load_books() -> list[dict]:
+def _parse_books() -> list[dict]:
     """Đọc books.json. Thiếu hoặc hỏng thì dùng đúng một sách mặc định."""
     if not BOOKS_FILE.exists():
         return [dict(DEFAULT_BOOK)]
@@ -186,6 +187,24 @@ def load_books() -> list[dict]:
         if book["id"] and book["name"] and book["pages"]:
             books.append(book)
     return books or [dict(DEFAULT_BOOK)]
+
+
+def load_books() -> list[dict]:
+    """Đọc books.json, tự nạp lại khi file thay đổi (không cần restart)."""
+    try:
+        mtime = BOOKS_FILE.stat().st_mtime
+    except OSError:
+        mtime = None
+
+    with _BOOK_LOCK:
+        if mtime is not None and _BOOKS_CACHE["mtime"] == mtime:
+            return _BOOKS_CACHE["books"]
+
+    books = _parse_books()
+    with _BOOK_LOCK:
+        _BOOKS_CACHE["mtime"] = mtime
+        _BOOKS_CACHE["books"] = books
+    return books
 
 
 def book_pages(book: dict) -> list[str]:
@@ -409,9 +428,11 @@ class Handler(BaseHTTPRequestHandler):
     books: list[dict] = []
 
     def _book(self, book_id: str) -> dict | None:
+        # Đọc lại mỗi request: thêm tài liệu mới không cần khởi động lại server.
+        books = load_books()
         if not book_id:
-            return self.books[0] if self.books else None
-        for book in self.books:
+            return books[0] if books else None
+        for book in books:
             if book["id"] == book_id:
                 return book
         return None
@@ -452,8 +473,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/health":
             self._json(200, {"ok": True, "pages": len(self.pages)})
         elif path == "/api/books":
+            books = load_books()
             items = []
-            for book in self.books:
+            for book in books:
                 try:
                     count = len(book_pages(book))
                 except (OSError, KeyError, json.JSONDecodeError):
@@ -464,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
                     "short": book.get("short") or book["name"],
                     "pages": count,
                 })
-            default = self.books[0]["id"] if self.books else ""
+            default = books[0]["id"] if books else ""
             self._json(200, {"books": items, "default": default})
         elif path.startswith("/figures/"):
             name = path[len("/figures/"):]

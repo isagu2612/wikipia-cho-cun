@@ -56,11 +56,13 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | --- | --- |
 | `server.py` | Web server local + gọi OpenCode CLI sinh lời giải |
 | `index.html` | Giao diện chat, hiển thị công thức bằng KaTeX |
-| `pages.json` | Nội dung từng trang sách, đã trích sẵn từ `sgkII.pdf` |
-| `books.json` | Danh sách tài liệu hiển thị ở cột **Thư viện** bên trái |
-| `sgkII.pdf` | Sách gốc, dùng để cắt hình trong sách và trích lại `pages.json` |
-| `extract_pages.py` | Tạo lại `pages.json` từ PDF (cần `pymupdf`) |
-| `figures.py` | Cắt hình có sẵn trong SGK (cần `pymupdf`) |
+| `pages.json` | Nội dung từng trang của tài liệu nguồn mặc định (`sgkII.pdf`) |
+| `books.json` | Danh sách **tài liệu nguồn** hiện ở cột **Thư viện kiến thức** |
+| `add_book.py` | Thêm tài liệu nguồn mới (copy PDF + trích trang + ghi `books.json`) |
+| `sources/` | PDF và `pages.json` của các tài liệu thêm sau (tự sinh) |
+| `sgkII.pdf` | Tài liệu nguồn đầu tiên, dùng để cắt hình và trích lại `pages.json` |
+| `extract_pages.py` | Trích lại nội dung trang từ một PDF bất kỳ (cần `pymupdf`) |
+| `figures.py` | Cắt hình có sẵn trong tài liệu nguồn (cần `pymupdf`) |
 | `figures_cache/` | Ảnh hình đã cắt (tự sinh khi chạy) |
 | `opencode.json` | Định nghĩa 2 agent: `toan` (giải bài) và `hinhve` (vẽ hình) |
 | `prompt.md` | System prompt của agent `toan` |
@@ -68,9 +70,10 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `start.bat` | Chạy nhanh trên Windows |
 | `share.bat` / `share.ps1` | Chạy server + ngrok để link web cố định hoạt động |
 
-## Thư viện tài liệu
+## Thư viện kiến thức (tài liệu nguồn)
 
-Cột **Thư viện** bên trái liệt kê các tài liệu trong `books.json`:
+Cột **Thư viện kiến thức** bên trái liệt kê các **tài liệu nguồn** trong
+`books.json`. `sgkII.pdf` chỉ là một tài liệu nguồn đầu tiên:
 
 ```json
 {
@@ -88,26 +91,35 @@ Cột **Thư viện** bên trái liệt kê các tài liệu trong `books.json`:
 
 - `id`: mã không dấu, dùng trong API (`book`).
 - `pages`: file nội dung từng trang (do `extract_pages.py` tạo).
-- `pdf`: file gốc, dùng để cắt hình trong sách (bỏ trống nếu không cần).
-- Sách đang chọn được lưu trong trình duyệt; đổi sách sẽ đặt lại "bài gần nhất"
-  của `/chitiet` và `/vehinh`.
-- Nút **☰** trên tiêu đề để **ẩn/hiện** cột này (trạng thái được ghi nhớ). Trên
-  màn hình hẹp, nút đó mở thư viện dạng ngăn kéo.
+- `pdf`: file gốc, dùng để cắt hình trong tài liệu (bỏ trống nếu không cần).
+- Tài liệu đang chọn được lưu trong trình duyệt; đổi tài liệu sẽ đặt lại
+  "bài gần nhất" của `/chitiet` và `/vehinh`.
+- Nút **☰** trên tiêu đề để **ẩn/hiện** cột này (trượt ra vào, trạng thái được
+  ghi nhớ). Trên màn hình hẹp, nút đó mở thư viện dạng ngăn kéo.
 - API: `GET /api/books` trả danh sách; `/api/ask` và `/api/figure` nhận thêm
   trường `book`.
 
-**Thêm một tài liệu mới** (thủ công, chưa có giao diện upload):
+### Thêm tài liệu nguồn mới
 
 ```bat
-copy sach-moi.pdf .
-python extract_pages.py sach-moi.pdf sach-moi-pages.json
+python add_book.py "D:\sach\toan-11-tap1.pdf"
+python add_book.py sach.pdf --id toan-11-t1 --name "Toán 11 – Tập 1"
 ```
 
-rồi thêm một mục vào `books.json` (trỏ `pages`/`pdf` tới hai file vừa có) và
-khởi động lại `server.py`.
+Script làm đúng quy trình như `sgkII`:
+
+1. Copy PDF vào `sources/<id>.pdf`.
+2. Trích nội dung từng trang → `sources/<id>.pages.json`.
+3. Thêm mục vào `books.json` (không trùng `id`; `--force` để ghi đè).
+
+Sau đó tải lại trang web — **không cần khởi động lại** `server.py`, vì
+`books.json` được đọc lại mỗi khi file thay đổi.
+
+Tài liệu mới có ngay đủ tính năng: hỏi bài theo số trang, 3 chế độ,
+`/chitiet`, `/vehinh`, cắt hình từ chính PDF của nó.
 
 > Lưu ý: quy ước "số trang in = chỉ mục mảng" chỉ đúng với từng PDF đã kiểm tra.
-> Nếu sách mới bị lệch trang, kiểm tra lại bằng vài trang đầu trước khi dùng.
+> Nếu tài liệu mới bị lệch trang, kiểm tra lại bằng vài trang đầu trước khi dùng.
 
 ## Cách hoạt động
 
@@ -174,7 +186,8 @@ Có thể kèm câu hỏi ngay sau lệnh, ví dụ `/chitiet bài 1a trang 5`, 
   `set OPENCODE_TOAN_MODEL=9router/groq/openai/gpt-oss-120b` rồi chạy lại.
 - **Đổi nội dung/cách giải**: sửa `prompt.md`.
 - **Chặn/mở công cụ cho agent**: sửa `permissions` trong `opencode.json`.
-- **Cập nhật lại dữ liệu sách** (khi có bản PDF mới): `python extract_pages.py đường\đẫn\sgkII.pdf`.
+- **Cập nhật lại dữ liệu của một tài liệu nguồn**: `python add_book.py <file.pdf> --id <id> --force`
+  (hoặc `python extract_pages.py <file.pdf> <pages.json>` nếu chỉ muốn trích trang).
 
 ## Xử lý sự cố
 
@@ -190,6 +203,7 @@ Có thể kèm câu hỏi ngay sau lệnh, ví dụ `/chitiet bài 1a trang 5`, 
 
 ## Phạm vi
 
-Hiện chỉ hỗ trợ **SGK Toán 12 – Tập 2** (`sgkII.pdf`, Chương IV–VI).
-Muốn thêm Tập 1 (`sgk.pdf`), chạy `extract_pages.py` cho file đó và bổ sung
-bộ chọn tập trong `index.html` + `server.py`.
+`sgkII.pdf` (SGK Toán 12 – Tập 2, Chương IV–VI) là **tài liệu nguồn** đầu tiên.
+Thêm tài liệu khác bằng `python add_book.py <file.pdf>` — xem mục
+**Thư viện kiến thức** ở trên. Mỗi tài liệu nguồn có nội dung trang và PDF
+riêng, dùng chung một giao diện chat.
