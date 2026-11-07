@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 figures_cache/
 sources/
+books.local.json

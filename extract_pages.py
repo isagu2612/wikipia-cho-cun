@@ -16,7 +16,7 @@ import json
 import sys
 from pathlib import Path
 
-import pymupdf
+from doc_text import pdf_page_texts
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -31,9 +31,7 @@ def main() -> None:
     if not pdf_path.exists():
         sys.exit(f"Không tìm thấy file PDF: {pdf_path}")
 
-    doc = pymupdf.open(pdf_path)
-    pages = [doc[i].get_text("text", sort=True).strip() for i in range(doc.page_count)]
-    doc.close()
+    pages = pdf_page_texts(pdf_path)
 
     out_path = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else BASE / "pages.json"
     data = {

@@ -26,12 +26,13 @@ import sys
 import unicodedata
 from pathlib import Path
 
-import pymupdf
+from doc_text import pdf_page_texts
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE = Path(__file__).resolve().parent
 BOOKS_FILE = BASE / "books.json"
+LOCAL_FILE = BASE / "books.local.json"
 SOURCES_DIR = BASE / "sources"
 
 
@@ -43,29 +44,25 @@ def slugify(text: str) -> str:
     return text or "tai-lieu"
 
 
-def read_books() -> list[dict]:
-    if not BOOKS_FILE.exists():
+def read_books(path: Path) -> list[dict]:
+    if not path.exists():
         return []
     try:
-        data = json.loads(BOOKS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
     return [b for b in data.get("books", []) if isinstance(b, dict)]
 
 
 def write_books(books: list[dict]) -> None:
-    BOOKS_FILE.write_text(
+    LOCAL_FILE.write_text(
         json.dumps({"books": books}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
 
 def extract_pages(pdf_path: Path, out_path: Path) -> int:
-    doc = pymupdf.open(pdf_path)
-    try:
-        pages = [doc[i].get_text("text", sort=True).strip() for i in range(doc.page_count)]
-    finally:
-        doc.close()
+    pages = pdf_page_texts(pdf_path)
     out_path.write_text(
         json.dumps(
             {"source": pdf_path.name, "count": len(pages), "pages": pages},
@@ -98,9 +95,10 @@ def main() -> None:
 
     name = args.name.strip() or pdf_path.stem
 
-    books = read_books()
-    existing = next((i for i, b in enumerate(books) if b.get("id") == book_id), None)
-    if existing is not None and not args.force:
+    local_books = read_books(LOCAL_FILE)
+    in_public = any(b.get("id") == book_id for b in read_books(BOOKS_FILE))
+    existing = next((i for i, b in enumerate(local_books) if b.get("id") == book_id), None)
+    if (existing is not None or in_public) and not args.force:
         sys.exit(
             f"Đã có tài liệu id '{book_id}'. Dùng --id khác hoặc --force để ghi đè."
         )
@@ -123,16 +121,17 @@ def main() -> None:
         "pdf": f"sources/{pdf_out.name}",
     }
     if existing is not None:
-        books[existing] = entry
+        local_books[existing] = entry
     else:
-        books.append(entry)
-    write_books(books)
+        local_books.append(entry)
+    write_books(local_books)
 
     print(f"Đã thêm tài liệu nguồn: {name}")
     print(f"  id     : {book_id}")
     print(f"  số trang: {count}")
     print(f"  pdf    : {entry['pdf']}")
     print(f"  pages  : {entry['pages']}")
+    print(f"  đăng ký: {LOCAL_FILE.name} (chỉ ở máy này, không đẩy lên GitHub)")
     print("Mở lại trang web và chọn tài liệu ở cột Thư viện kiến thức.")
 
 

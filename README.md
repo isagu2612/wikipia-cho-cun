@@ -57,8 +57,10 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `server.py` | Web server local + gọi OpenCode CLI sinh lời giải |
 | `index.html` | Giao diện chat, hiển thị công thức bằng KaTeX |
 | `pages.json` | Nội dung từng trang của tài liệu nguồn mặc định (`sgkII.pdf`) |
-| `books.json` | Danh sách **tài liệu nguồn** hiện ở cột **Thư viện kiến thức** |
-| `add_book.py` | Thêm tài liệu nguồn mới (copy PDF + trích trang + ghi `books.json`) |
+| `books.json` | Danh sách **tài liệu nguồn** công khai hiện ở cột **Thư viện kiến thức** |
+| `books.local.json` | Tài liệu nguồn thêm trên máy này (không đẩy lên GitHub) |
+| `add_book.py` | Thêm tài liệu nguồn mới (copy PDF + trích trang + ghi danh sách) |
+| `doc_text.py` | Trích chữ từ PDF, khử lớp chữ bị lặp (cần `pymupdf`) |
 | `sources/` | PDF và `pages.json` của các tài liệu thêm sau (tự sinh) |
 | `sgkII.pdf` | Tài liệu nguồn đầu tiên, dùng để cắt hình và trích lại `pages.json` |
 | `extract_pages.py` | Trích lại nội dung trang từ một PDF bất kỳ (cần `pymupdf`) |
@@ -72,8 +74,17 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 
 ## Thư viện kiến thức (tài liệu nguồn)
 
-Cột **Thư viện kiến thức** bên trái liệt kê các **tài liệu nguồn** trong
-`books.json`. `sgkII.pdf` chỉ là một tài liệu nguồn đầu tiên:
+Cột **Thư viện kiến thức** bên trái liệt kê các **tài liệu nguồn**, lấy từ hai file:
+
+| File | Nội dung | Đẩy lên GitHub? |
+| --- | --- | --- |
+| `books.json` | Tài liệu công khai (đi kèm repo, ví dụ `sgkII.pdf`) | Có |
+| `books.local.json` | Tài liệu thêm trên máy này (PDF nằm trong `sources/`) | **Không** |
+
+Server gộp hai file lại (trùng `id` thì bản local thắng). Nhờ vậy repo công khai
+không bị trỏ tới file PDF không tồn tại.
+
+Ví dụ `books.json`:
 
 ```json
 {
@@ -109,11 +120,11 @@ python add_book.py sach.pdf --id toan-11-t1 --name "Toán 11 – Tập 1"
 Script làm đúng quy trình như `sgkII`:
 
 1. Copy PDF vào `sources/<id>.pdf`.
-2. Trích nội dung từng trang → `sources/<id>.pages.json`.
-3. Thêm mục vào `books.json` (không trùng `id`; `--force` để ghi đè).
+2. Trích nội dung từng trang → `sources/<id>.pages.json` (đã khử chữ bị lặp).
+3. Ghi mục vào `books.local.json` (không trùng `id`; `--force` để ghi đè).
 
-Sau đó tải lại trang web — **không cần khởi động lại** `server.py`, vì
-`books.json` được đọc lại mỗi khi file thay đổi.
+Sau đó tải lại trang web — **không cần khởi động lại** `server.py`, vì danh sách
+được đọc lại mỗi khi `books.json` / `books.local.json` thay đổi.
 
 Tài liệu mới có ngay đủ tính năng: hỏi bài theo số trang, 3 chế độ,
 `/chitiet`, `/vehinh`, cắt hình từ chính PDF của nó.

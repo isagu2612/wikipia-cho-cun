@@ -36,6 +36,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 BASE = Path(__file__).resolve().parent
 BOOKS_FILE = BASE / "books.json"
+BOOKS_LOCAL_FILE = BASE / "books.local.json"
 INDEX_FILE = BASE / "index.html"
 
 MODEL = os.environ.get("OPENCODE_TOAN_MODEL", "9router/cmc/deepseek/deepseek-v4.1-flash")
@@ -127,10 +128,12 @@ def normalize_message(text: str) -> str:
 
 # Dấu hiệu nhận biết bài hình học -> mới gọi thêm agent vẽ hình.
 GEO_RE = re.compile(
-    r"hình học|hình phẳng|hình hộp|hình chóp|hình nón|hình trụ|hình cầu|"
-    r"tam giác|tứ giác|đa giác|đường tròn|mặt phẳng|mặt cầu|đường thẳng|"
-    r"vectơ|vector|tọa độ|toạ độ|oxyz|góc|khoảng cách|parabol|elip|"
-    r"thể tích|diện tích|thiết diện|trục|mặt đáy|đường sinh",
+    r"hình\s+(?:học|phẳng|hộp|chóp|lăng\s*trụ|nón|trụ|cầu|thang|bình\s*hành|"
+    r"chữ\s*nhật|vuông|thoi|elip|parabol)"
+    r"|tam\s*giác|tứ\s*giác|đa\s*giác|tứ\s*diện"
+    r"|đường\s*tròn|mặt\s*cầu|thiết\s*diện|đường\s*sinh|mặt\s*đáy|đường\s*cao"
+    r"|mặt\s*phẳng|đường\s*thẳng"
+    r"|vecto|vector|oxyz",
     re.IGNORECASE,
 )
 
@@ -161,17 +164,16 @@ DEFAULT_BOOK = {
 
 _BOOK_PAGES: dict[str, list[str]] = {}
 _BOOK_LOCK = threading.Lock()
-_BOOKS_CACHE: dict = {"mtime": None, "books": []}
+_BOOKS_CACHE: dict = {"key": None, "books": []}
 
 
-def _parse_books() -> list[dict]:
-    """Đọc books.json. Thiếu hoặc hỏng thì dùng đúng một sách mặc định."""
-    if not BOOKS_FILE.exists():
-        return [dict(DEFAULT_BOOK)]
+def _read_books(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
     try:
-        data = json.loads(BOOKS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return [dict(DEFAULT_BOOK)]
+        return []
 
     books: list[dict] = []
     for item in data.get("books", []):
@@ -186,23 +188,37 @@ def _parse_books() -> list[dict]:
         }
         if book["id"] and book["name"] and book["pages"]:
             books.append(book)
-    return books or [dict(DEFAULT_BOOK)]
+    return books
+
+
+def _parse_books() -> list[dict]:
+    """Gộp books.json (công khai) với books.local.json (tài liệu chỉ ở máy này)."""
+    merged: dict[str, dict] = {}
+    order: list[str] = []
+    for book in _read_books(BOOKS_FILE) + _read_books(BOOKS_LOCAL_FILE):
+        if book["id"] not in merged:
+            order.append(book["id"])
+        merged[book["id"]] = book
+    return [merged[i] for i in order] or [dict(DEFAULT_BOOK)]
 
 
 def load_books() -> list[dict]:
-    """Đọc books.json, tự nạp lại khi file thay đổi (không cần restart)."""
-    try:
-        mtime = BOOKS_FILE.stat().st_mtime
-    except OSError:
-        mtime = None
+    """Đọc danh sách tài liệu, tự nạp lại khi books.json thay đổi."""
+    key = []
+    for path in (BOOKS_FILE, BOOKS_LOCAL_FILE):
+        try:
+            key.append(path.stat().st_mtime)
+        except OSError:
+            key.append(None)
+    key = tuple(key)
 
     with _BOOK_LOCK:
-        if mtime is not None and _BOOKS_CACHE["mtime"] == mtime:
+        if _BOOKS_CACHE["key"] == key:
             return _BOOKS_CACHE["books"]
 
     books = _parse_books()
     with _BOOK_LOCK:
-        _BOOKS_CACHE["mtime"] = mtime
+        _BOOKS_CACHE["key"] = key
         _BOOKS_CACHE["books"] = books
     return books
 
@@ -304,6 +320,23 @@ def looks_like_geometry(user_msg: str, page_text: str | None) -> bool:
     if GEO_RE.search(user_msg):
         return True
     return bool(page_text and GEO_RE.search(page_text))
+
+
+LABEL_STOP_RE = re.compile(r"\b(?:Bài|Câu|Ví\s*dụ)\s*\d+", re.IGNORECASE)
+
+
+def geometry_text(text: str, limit: int = 600) -> str:
+    """Chỉ lấy đoạn đầu của bài đang hỏi, cắt ở bài/câu kế tiếp.
+
+    Tránh việc bài đại số bị nhận nhầm là hình học vì câu phía sau trong cùng
+    trang có chữ "tam giác", "mặt phẳng"...
+    """
+    if not text:
+        return ""
+    match = LABEL_STOP_RE.search(text, 10)
+    if match and match.start() > 30:
+        text = text[: match.start()]
+    return text[:limit]
 
 
 SVG_RE = re.compile(r"<svg[\s\S]*?</svg>", re.IGNORECASE)
@@ -518,7 +551,7 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
-        if not looks_like_geometry(message, page_text):
+        if not looks_like_geometry(message, geometry_text(info.get("text") or page_text or "")):
             self._json(200, {
                 "type": "none",
                 "page": page_no,
@@ -621,7 +654,9 @@ class Handler(BaseHTTPRequestHandler):
         info = analyze_page(page_no, message, pdf_path)
         book_fig = info.get("figure") if allow_figure else None
         coordinate = is_coordinate_context(message, info.get("text", ""))
-        geometry = looks_like_geometry(message, page_text)
+        geometry = looks_like_geometry(
+            message, geometry_text(info.get("text") or page_text or "")
+        )
 
         draw_ai = (
             allow_figure
