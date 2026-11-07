@@ -75,13 +75,21 @@
     font-size:11.5px; color:var(--muted); line-height:1.5;
   }
   .lib-toggle{
-    display:none; flex:0 0 auto; align-items:center; gap:7px; height:32px; padding:0 12px;
+    display:inline-flex; flex:0 0 auto; align-items:center; gap:7px; height:32px; padding:0 12px;
     border:1.5px solid var(--line-strong); background:var(--surface); color:var(--ink-2);
     border-radius:999px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
-    transition:color .15s, border-color .15s;
+    transition:color .15s, border-color .15s, background .15s;
   }
   .lib-toggle:hover{color:var(--ink); border-color:var(--ink)}
+  .lib-toggle[aria-expanded="false"]{color:var(--muted)}
   .scrim{display:none}
+
+  /* Desktop: nút Thư viện thu gọn thành icon, bấm để ẩn/hiện cột trái */
+  @media (min-width:901px){
+    .lib-toggle{width:32px; height:32px; padding:0; border-radius:50%; justify-content:center}
+    .lib-toggle .lib-label{display:none}
+    .shell.lib-hidden .library{display:none}
+  }
 
   /* ---------- Header ---------- */
   header{
@@ -313,7 +321,6 @@
     }
     .shell.lib-open .library{transform:none}
     .lib-close{display:block}
-    .lib-toggle{display:inline-flex}
     .scrim{
       display:block; position:fixed; inset:0; z-index:30;
       background:rgba(0,0,0,.32); opacity:0; pointer-events:none;
@@ -360,9 +367,9 @@
         <p id="brandSub">Tập 2 · gõ tên bài kèm số trang, ví dụ “bài 1a trang 5”</p>
       </div>
     </div>
-    <button type="button" class="lib-toggle" id="libToggle" aria-label="Mở thư viện tài liệu">
+    <button type="button" class="lib-toggle" id="libToggle" aria-label="Ẩn/hiện thư viện tài liệu" aria-expanded="true" title="Ẩn/hiện thư viện">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-      Thư viện
+      <span class="lib-label">Thư viện</span>
     </button>
     <button type="button" class="api-btn" id="apiBtn" title="Đặt địa chỉ máy chủ API" aria-label="Đặt địa chỉ máy chủ API">⚙</button>
     <div class="mode-switch" id="modeSwitch" data-mode="concise" role="group" aria-label="Chế độ trả lời">
@@ -437,8 +444,31 @@ let books = [];
 let bookId = '';
 let lastAsked = '';
 
+const LIB_HIDDEN_STORAGE = 'toan-chatbox-lib-hidden';
+const wideQuery = matchMedia('(min-width: 901px)');
+
+function syncLibAria(){
+  const visible = wideQuery.matches
+    ? !shell.classList.contains('lib-hidden')
+    : shell.classList.contains('lib-open');
+  libToggle.setAttribute('aria-expanded', visible ? 'true' : 'false');
+}
+
 function setLibraryOpen(open){
   shell.classList.toggle('lib-open', open);
+  syncLibAria();
+}
+
+function setLibraryHidden(hidden){
+  shell.classList.toggle('lib-hidden', hidden);
+  localStorage.setItem(LIB_HIDDEN_STORAGE, hidden ? '1' : '0');
+  syncLibAria();
+}
+
+function toggleLibrary(){
+  // Màn hình rộng: ẩn/hiện cột trái. Màn hình hẹp: mở ngăn kéo.
+  if (wideQuery.matches) setLibraryHidden(!shell.classList.contains('lib-hidden'));
+  else setLibraryOpen(true);
 }
 
 function currentBook(){
@@ -533,7 +563,7 @@ async function loadBooks(){
   applyBook(books.some(b => b.id === saved) ? saved : books[0].id);
 }
 
-libToggle.addEventListener('click', () => setLibraryOpen(true));
+libToggle.addEventListener('click', toggleLibrary);
 libClose.addEventListener('click', () => setLibraryOpen(false));
 scrim.addEventListener('click', () => setLibraryOpen(false));
 document.addEventListener('keydown', e => {
@@ -934,6 +964,8 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateMode
 requestAnimationFrame(updateModeUI);
 refreshApiBtn();
 loadBooks();
+setLibraryHidden(localStorage.getItem(LIB_HIDDEN_STORAGE) === '1');
+window.addEventListener('resize', syncLibAria);
 if (apiBtn.classList.contains('warn')){
   addNotice('Chưa đặt địa chỉ máy chủ. Bấm nút ⚙ ở góc phải để dán URL tunnel.');
 }

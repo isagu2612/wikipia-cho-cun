@@ -91,6 +91,8 @@ Cột **Thư viện** bên trái liệt kê các tài liệu trong `books.json`:
 - `pdf`: file gốc, dùng để cắt hình trong sách (bỏ trống nếu không cần).
 - Sách đang chọn được lưu trong trình duyệt; đổi sách sẽ đặt lại "bài gần nhất"
   của `/chitiet` và `/vehinh`.
+- Nút **☰** trên tiêu đề để **ẩn/hiện** cột này (trạng thái được ghi nhớ). Trên
+  màn hình hẹp, nút đó mở thư viện dạng ngăn kéo.
 - API: `GET /api/books` trả danh sách; `/api/ask` và `/api/figure` nhận thêm
   trường `book`.
 
