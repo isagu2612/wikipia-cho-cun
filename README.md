@@ -126,7 +126,7 @@ Script làm đúng quy trình như `sgkII`:
 Sau đó tải lại trang web — **không cần khởi động lại** `server.py`, vì danh sách
 được đọc lại mỗi khi `books.json` / `books.local.json` thay đổi.
 
-Tài liệu mới có ngay đủ tính năng: hỏi bài theo số trang, 4 chế độ,
+Tài liệu mới có ngay đủ tính năng: hỏi bài theo số trang, 3 chế độ,
 `/chitiet`, `/vehinh`, cắt hình từ chính PDF của nó.
 
 > Lưu ý: quy ước "số trang in = chỉ mục mảng" chỉ đúng với từng PDF đã kiểm tra.
@@ -168,17 +168,18 @@ Các cách viết sau được hiểu như nhau:
 
 ## Chế độ trả lời
 
-Có 4 chế độ, chuyển bằng nút ở góc trên bên phải:
+Có 3 chế độ, chuyển bằng nút ở góc trên bên phải:
 
 | Chế độ | Nội dung |
 | --- | --- |
 | **Normal** (mặc định) | Ngắn gọn: công thức → thay số → kết quả, bỏ định nghĩa dài dòng. |
 | **Fast** | Chỉ gồm **đề bài** + **trình bày (để chép)**, không giải thích. |
 | **Kết quả** | Chỉ **đề bài** + **đáp án cuối cùng**, bỏ toàn bộ bước giải. |
-| **Lí thuyết** | Chi tiết: kiến thức dùng, giải thích từng bước, lỗi thường gặp. |
 
+- Chế độ **Lí thuyết** (chi tiết, giải thích từng bước) không còn trên thanh
+  chọn; dùng lệnh `/chitiet` để giải lại bài gần nhất ở chế độ đó.
 - Chế độ được lưu trong trình duyệt (localStorage).
-- Ở các chế độ Normal / Fast / Lí thuyết, câu trả lời kết thúc bằng mục
+- Ở các chế độ Normal / Fast, câu trả lời kết thúc bằng mục
   **Trình bày (để chép)**: "Ta có:" rồi mỗi bước xuống dòng bắt đầu bằng "=>",
   đóng khung đáp án. Chế độ **Kết quả** không có phần này.
 - Đề nhắc tới hình ("hình bên", "đồ thị như hình"…) thì hình trong sách được

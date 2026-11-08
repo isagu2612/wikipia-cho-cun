@@ -283,6 +283,33 @@ def crop_figure(page, box: pymupdf.Rect, dpi: int = 200, pad: float = 4.0,
     return path, name
 
 
+def crop_band(page_no: int, label, pdf_path: Path | str = DEFAULT_PDF,
+              dpi: int = 150):
+    """Cắt nguyên đoạn đề của bài (để gửi model đọc đúng bố cục)."""
+    doc = pymupdf.open(pdf_path)
+    try:
+        if page_no < 0 or page_no >= doc.page_count:
+            return None
+        page = doc[page_no]
+        band = _label_band(page, label)
+        if not band:
+            return None
+        clip = pymupdf.Rect(0, band[0] - 4, page.rect.width,
+                            min(band[1] + 4, page.rect.height))
+        if clip.height < 30 or clip.width < 100:
+            return None
+        CACHE_DIR.mkdir(exist_ok=True)
+        key = "%s_band_%d_%.0f_%.0f_%d" % (
+            Path(pdf_path).stem, page.number, clip.y0, clip.y1, dpi)
+        name = "fig_" + hashlib.md5(key.encode()).hexdigest()[:12] + ".png"
+        path = CACHE_DIR / name
+        if not path.exists():
+            page.get_pixmap(clip=clip, dpi=dpi).save(path)
+        return path, name
+    finally:
+        doc.close()
+
+
 def extract_figure(page_no: int, label=None, pdf_path: Path | str = DEFAULT_PDF):
     """Trả về (đường_dẫn_png, tên_file) hoặc None."""
     doc = pymupdf.open(pdf_path)

@@ -389,7 +389,6 @@
       <button type="button" class="mode-btn" data-mode="concise">Normal</button>
       <button type="button" class="mode-btn" data-mode="fast">Fast</button>
       <button type="button" class="mode-btn" data-mode="answer">Kết quả</button>
-      <button type="button" class="mode-btn" data-mode="detailed">Lí thuyết</button>
     </div>
   </div>
 </header>
@@ -589,7 +588,9 @@ const CHI_TIET_CMDS = ['/chitiet', '/chi tiết'];
 const VE_HINH_CMDS  = ['/vehinh', '/vẽ hình'];
 
 let mode = localStorage.getItem(MODE_STORAGE);
-if (!['concise', 'fast', 'answer', 'detailed'].includes(mode)) mode = 'concise';
+// "detailed" (Lí thuyết) không còn trên thanh chọn — chỉ dùng qua lệnh /chitiet.
+if (!['concise', 'fast', 'answer'].includes(mode)) mode = 'concise';
+localStorage.setItem(MODE_STORAGE, mode);
 
 let thumbPlaced = false;
 

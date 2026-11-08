@@ -329,8 +329,9 @@ def build_prompt(
         blocks.append("[TRANG ?] (Học sinh không nêu số trang sách.)")
     if has_image:
         blocks.append(
-            "[HÌNH] Ảnh đính kèm là hình vẽ trong sách của đúng bài này. "
-            "Hãy đọc kĩ hình (trục, tiệm cận, giao điểm, nhãn điểm) rồi mới kết luận."
+            "[HÌNH] Ảnh đính kèm là đúng đoạn đề trong sách (giữ nguyên bố cục, "
+            "phân số, các ý a/b/c và hình vẽ). Hãy đọc kĩ ảnh để lấy đúng đề bài "
+            "và số liệu rồi mới kết luận."
         )
     blocks.append(f"[CÂU HỎI] {user_msg}")
     blocks.append(MODES.get(mode, MODES[DEFAULT_MODE]))
@@ -447,6 +448,20 @@ def analyze_page(
             else figures.analyze(page_no, label)
     except Exception:
         return {"text": "", "figure": None}
+
+
+def band_image(
+    page_no: int | None, label: tuple[str, int] | None, pdf_path: Path | None
+) -> Path | None:
+    """Ảnh chụp đúng đoạn đề (giữ bố cục, công thức, hình) để model đọc."""
+    if page_no is None or label is None or pdf_path is None:
+        return None
+    try:
+        import figures  # import muộn: thiếu pymupdf thì app vẫn chạy
+        result = figures.crop_band(page_no, label, pdf_path)
+        return result[0] if result else None
+    except Exception:
+        return None
 
 
 def run_opencode(
@@ -734,8 +749,9 @@ class Handler(BaseHTTPRequestHandler):
         # sách và đính kèm ảnh đó cho model đọc.
         refers_figure = bool(FIGURE_REF_RE.search(focus or page_text or ""))
         book_fig = info.get("figure") if (allow_figure or refers_figure) else None
-        image_path: Path | None = None
-        if book_fig and refers_figure:
+        # Ảnh chụp đúng đoạn đề: giữ bố cục, phân số, ý a/b/c và hình vẽ.
+        image_path = band_image(page_no, label, pdf_path)
+        if image_path is None and book_fig and refers_figure:
             candidate = FIGURES_DIR / book_fig
             if candidate.is_file():
                 image_path = candidate
