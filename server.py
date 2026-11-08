@@ -67,6 +67,13 @@ MODES = {
         "KHÔNG thêm phần giải thích, định nghĩa, lưu ý hay nhận xét nào khác. "
         "KHÔNG tự vẽ hình."
     ),
+    "answer": (
+        "[CHẾ ĐỘ: CHỈ KẾT QUẢ] Chỉ trả về đúng hai phần: "
+        "**Đề.** (trích gọn đề bài) và **Kết quả.** (đáp án cuối cùng, đóng khung). "
+        "KHÔNG có bước giải, không công thức trung gian, không chữ \"Ta có\", "
+        "\"=>\", \"Vậy\", không giải thích, không nhận xét. "
+        "KHÔNG tự vẽ hình."
+    ),
 }
 
 # Nhận "trang 5", "tr/5", hoặc viết tắt "1a/5".
@@ -411,6 +418,17 @@ def label_in_text(text: str | None, label: tuple[str, int]) -> bool:
     return re.search(rf"{kind_pattern}\s*{num}\b", text, re.IGNORECASE) is not None
 
 
+def align_label_text(text: str | None, label: tuple[str, int] | None) -> str | None:
+    """Sửa nhãn bị lặp chữ số do PDF có hai lớp chữ ("Bài 11" = "Bài 1")."""
+    if not text or not label:
+        return text
+    kind, num = label
+    doubled = f"{kind} {num}{num}"
+    if doubled in text:
+        return text.replace(doubled, f"{kind} {num}")
+    return text
+
+
 def analyze_page(
     page_no: int | None, message: str, pdf_path: Path | None = None
 ) -> dict:
@@ -711,6 +729,7 @@ class Handler(BaseHTTPRequestHandler):
         focus = (info.get("text") or "").strip()
         label = parse_label(message)
         context_text = focus if (label and label[0] == "Câu" and len(focus) >= 60) else page_text
+        context_text = align_label_text(context_text, label)
         # Đề nhắc tới hình ("hình bên", "đồ thị như hình"...) -> hiện hình trong
         # sách và đính kèm ảnh đó cho model đọc.
         refers_figure = bool(FIGURE_REF_RE.search(focus or page_text or ""))

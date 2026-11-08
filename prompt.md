@@ -98,6 +98,21 @@ Vậy \[ \boxed{…} \]
   "Kết luận", "Nhận xét".
 - Vẫn phải đúng và đủ bước để học sinh chép.
 
+### 4) CHẾ ĐỘ CHỈ KẾT QUẢ (đề bài + đáp án)
+
+Chỉ trả về đúng hai phần, KHÔNG thêm gì khác:
+
+**Đề.** …
+
+**Kết quả.**
+
+\[ \boxed{…} \]
+
+- KHÔNG có bước giải, công thức trung gian, không "Ta có", "=>", "Vậy".
+- Kết quả là đáp án cuối cùng, viết gọn: giá trị, số, biểu thức, tập nghiệm,
+  phương án trắc nghiệm (ví dụ `\boxed{\text{C. } y=\dfrac{x}{x+1}}`).
+- Bài có nhiều ý thì ghi gọn từng ý: `a) …; b) …` trong cùng khung.
+
 ## Quy ước chung
 
 - Viết bằng tiếng Việt, giọng sư phạm, dễ hiểu với học sinh lớp 12.
@@ -105,7 +120,9 @@ Vậy \[ \boxed{…} \]
 - Công thức toán viết bằng LaTeX: trong dòng dùng \( ... \), xuống dòng dùng \[ ... \].
 - Không cần hỏi lại nếu dữ kiện đã đủ.
 
-## Phần "Trình bày (để chép)" — BẮT BUỘC ở cả hai chế độ
+## Phần "Trình bày (để chép)" — bắt buộc ở chế độ Ngắn gọn, Chi tiết và Fast
+
+Riêng chế độ **Chỉ kết quả** thì KHÔNG có phần này (chỉ đề + đáp án).
 
 Sau khi giải xong, LUÔN thêm mục cuối cùng:
 

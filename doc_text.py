@@ -15,6 +15,8 @@ import pymupdf
 
 # "BÀIBÀI", "BàiBài", "TẬPTẬP" -> một lần (không áp dụng khi có dấu cách)
 _REPEAT_WORD = re.compile(r"(?<![^\W\d_])([^\W\d_]{2,})\1", re.IGNORECASE)
+# dòng chỉ gồm dấu chấm (phần "chỗ trả lời" trong sách) -> bỏ hẳn
+_DOT_LINE = re.compile(r"(?m)^[ .]{10,}$\n?")
 
 
 def clean_text(text: str) -> str:
@@ -22,6 +24,7 @@ def clean_text(text: str) -> str:
     if not text:
         return text
     text = _REPEAT_WORD.sub(r"\1", text)
+    text = _DOT_LINE.sub("", text)
     text = re.sub(r"[ \t]{4,}", "   ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()

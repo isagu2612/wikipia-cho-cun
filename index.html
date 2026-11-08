@@ -344,6 +344,7 @@
     header{padding:12px 14px}
     .brand h1{font-size:15px}
     .brand p{font-size:11.5px}
+    .mode-btn{padding:7px 8px; font-size:12px}
     #chat{padding:18px 12px 6px; gap:14px}
     .bubble{padding:12px 14px}
     .row.user .bubble{max-width:85%}
@@ -387,6 +388,7 @@
       <span class="mode-thumb" aria-hidden="true"></span>
       <button type="button" class="mode-btn" data-mode="concise">Normal</button>
       <button type="button" class="mode-btn" data-mode="fast">Fast</button>
+      <button type="button" class="mode-btn" data-mode="answer">Kết quả</button>
       <button type="button" class="mode-btn" data-mode="detailed">Lí thuyết</button>
     </div>
   </div>
@@ -587,7 +589,7 @@ const CHI_TIET_CMDS = ['/chitiet', '/chi tiết'];
 const VE_HINH_CMDS  = ['/vehinh', '/vẽ hình'];
 
 let mode = localStorage.getItem(MODE_STORAGE);
-if (mode !== 'concise' && mode !== 'detailed' && mode !== 'fast') mode = 'concise';
+if (!['concise', 'fast', 'answer', 'detailed'].includes(mode)) mode = 'concise';
 
 let thumbPlaced = false;
 
@@ -632,6 +634,7 @@ function applyMode(next, announce){
     const notices = {
       concise: 'Đã chuyển sang chế độ Normal (công thức → thay số → kết quả).',
       fast: 'Đã chuyển sang chế độ Fast (chỉ đề bài + trình bày).',
+      answer: 'Đã chuyển sang chế độ Chỉ kết quả (đề bài + đáp án).',
       detailed: 'Đã chuyển sang chế độ Lí thuyết (chi tiết từng bước).'
     };
     addNotice(notices[mode] || notices.concise);
