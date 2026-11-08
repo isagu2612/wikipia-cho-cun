@@ -388,7 +388,7 @@
       <span class="mode-thumb" aria-hidden="true"></span>
       <button type="button" class="mode-btn" data-mode="concise">Normal</button>
       <button type="button" class="mode-btn" data-mode="fast">Fast</button>
-      <button type="button" class="mode-btn" data-mode="answer">Kết quả</button>
+      <button type="button" class="mode-btn" data-mode="answer">Result</button>
     </div>
   </div>
 </header>
@@ -635,7 +635,7 @@ function applyMode(next, announce){
     const notices = {
       concise: 'Đã chuyển sang chế độ Normal (công thức → thay số → kết quả).',
       fast: 'Đã chuyển sang chế độ Fast (chỉ đề bài + trình bày).',
-      answer: 'Đã chuyển sang chế độ Chỉ kết quả (đề bài + đáp án).',
+      answer: 'Đã chuyển sang chế độ Result (chỉ đề bài + đáp án).',
       detailed: 'Đã chuyển sang chế độ Lí thuyết (chi tiết từng bước).'
     };
     addNotice(notices[mode] || notices.concise);

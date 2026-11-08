@@ -174,14 +174,14 @@ Có 3 chế độ, chuyển bằng nút ở góc trên bên phải:
 | --- | --- |
 | **Normal** (mặc định) | Ngắn gọn: công thức → thay số → kết quả, bỏ định nghĩa dài dòng. |
 | **Fast** | Chỉ gồm **đề bài** + **trình bày (để chép)**, không giải thích. |
-| **Kết quả** | Chỉ **đề bài** + **đáp án cuối cùng**, bỏ toàn bộ bước giải. |
+| **Result** | Chỉ **đề bài** + **đáp án cuối cùng**, bỏ toàn bộ bước giải. |
 
 - Chế độ **Lí thuyết** (chi tiết, giải thích từng bước) không còn trên thanh
   chọn; dùng lệnh `/chitiet` để giải lại bài gần nhất ở chế độ đó.
 - Chế độ được lưu trong trình duyệt (localStorage).
 - Ở các chế độ Normal / Fast, câu trả lời kết thúc bằng mục
   **Trình bày (để chép)**: "Ta có:" rồi mỗi bước xuống dòng bắt đầu bằng "=>",
-  đóng khung đáp án. Chế độ **Kết quả** không có phần này.
+  đóng khung đáp án. Chế độ **Result** không có phần này.
 - Đề nhắc tới hình ("hình bên", "đồ thị như hình"…) thì hình trong sách được
   hiện kèm và gửi cho model đọc; ngoài ra hình chỉ xuất hiện khi gõ `/vehinh`.
 
