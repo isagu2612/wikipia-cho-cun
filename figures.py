@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import pymupdf
@@ -44,9 +45,18 @@ def _cluster(rects: list[pymupdf.Rect], gap: float = 12.0) -> list[pymupdf.Rect]
     return clusters
 
 
+def _label_key(kind: str) -> str:
+    k = kind.lower()
+    if k.startswith("ví"):
+        return "dụ"
+    if k.startswith("câu"):
+        return "câu"
+    return "bài"
+
+
 def _anchors(page) -> list[float]:
-    """Mọi mốc ngắt đoạn: nhãn Bài/Ví dụ + tiêu đề BÀI TẬP RÈN LUYỆN."""
-    ys = _label_ys(page, "Bài") + _label_ys(page, "Ví dụ")
+    """Mọi mốc ngắt đoạn: nhãn Bài/Ví dụ/Câu + tiêu đề BÀI TẬP RÈN LUYỆN."""
+    ys = _label_ys(page, "Bài") + _label_ys(page, "Ví dụ") + _label_ys(page, "Câu")
     for block in page.get_text("dict").get("blocks", []):
         if block.get("type") != 0:
             continue
@@ -82,26 +92,55 @@ def _label_band(page, label) -> tuple[float, float] | None:
 
 
 def _label_ys(page, kind: str) -> list[float]:
-    key = "dụ" if kind.lower().startswith("ví") else "bài"
+    key = _label_key(kind)
     raw = []
-    for block in page.get_text("dict").get("blocks", []):
-        if block.get("type") != 0:
-            continue
-        bb = pymupdf.Rect(block["bbox"])
-        if bb.width > 220 or bb.height > 40:
-            continue
-        txt = "".join(
-            (span.get("text") or "")
-            for line in block.get("lines", [])
-            for span in line.get("spans", [])
-        )
-        if key in txt.replace(" ", "").lower():
-            raw.append(bb.y0)
+
+    if key == "câu":
+        # "Câu" thường nằm cùng dòng với đề bài nên phải dò theo từ, không theo block.
+        for word in page.get_text("words"):
+            if word[4] == "Câu":
+                raw.append(word[1])
+    else:
+        for block in page.get_text("dict").get("blocks", []):
+            if block.get("type") != 0:
+                continue
+            bb = pymupdf.Rect(block["bbox"])
+            if bb.width > 220 or bb.height > 40:
+                continue
+            txt = "".join(
+                (span.get("text") or "")
+                for line in block.get("lines", [])
+                for span in line.get("spans", [])
+            )
+            if key in txt.replace(" ", "").lower():
+                raw.append(bb.y0)
     raw.sort()
     out: list[float] = []
     for y in raw:
         if not out or abs(y - out[-1]) > 6:
             out.append(y)
+    return out
+
+
+def _label_numbers(page, kind: str) -> list[tuple[int, float]]:
+    """Cặp (số, y) của các nhãn Câu — số Câu chạy liên tục nên cần đúng số."""
+    if _label_key(kind) != "câu":
+        return []
+    rows: dict[tuple[int, int], list] = {}
+    for word in page.get_text("words"):
+        rows.setdefault((word[5], word[6]), []).append(word)
+
+    out: list[tuple[int, float]] = []
+    for words in rows.values():
+        words.sort(key=lambda w: w[7])
+        for i, word in enumerate(words):
+            if word[4] != "Câu":
+                continue
+            for nxt in words[i + 1:i + 3]:
+                match = re.match(r"^(\d{1,3})", nxt[4])
+                if match:
+                    out.append((int(match.group(1)), word[1]))
+                    break
     return out
 
 
@@ -111,7 +150,11 @@ def _find_label_y(page, kind: str, num: int) -> float | None:
         rects = page.search_for(q)
         if rects:
             return min(r.y0 for r in rects)
-    # 2) dò nhãn theo thứ tự (PDF hay vẽ trùng glyph: "BàiBài 11")
+    # 2) nhãn Câu: khớp đúng số (đánh số liên tục giữa các trang)
+    for number, y in _label_numbers(page, kind):
+        if number == num:
+            return y
+    # 3) dò nhãn theo thứ tự (PDF hay vẽ trùng glyph: "BàiBài 11")
     ys = _label_ys(page, kind)
     return ys[num - 1] if 1 <= num <= len(ys) else None
 
@@ -174,6 +217,9 @@ def find_figure(page, label=None) -> pymupdf.Rect | None:
             continue
         if c.width * c.height < 1800:
             continue
+        # cụm phủ gần hết trang thường là khung/đường kẻ, không phải hình vẽ
+        if c.height > 0.6 * H or c.width > 0.8 * W:
+            continue
         if c.width > 0.85 * W and c.height < 55:
             continue
         box = pymupdf.Rect(c)
@@ -205,8 +251,10 @@ def find_figure(page, label=None) -> pymupdf.Rect | None:
         band = _label_band(page, label)
         if band:
             inside = [f for f in figs if band[0] <= (f[0].y0 + f[0].y1) / 2 <= band[1]]
-            if inside:
-                figs = inside
+            if not inside:
+                # Không có hình nào nằm trong bài đang hỏi -> đừng cắt hình của bài khác.
+                return None
+            figs = inside
 
     figs.sort(key=lambda f: (f[2] == "vector", f[0].width * f[0].height), reverse=True)
     return figs[0][0]
@@ -279,7 +327,7 @@ def analyze(page_no: int, label=None, pdf_path: Path | str = DEFAULT_PDF) -> dic
             result["text"] = exercise_text(page, label)
         box = find_figure(page, label)
         if box is not None:
-            _path, name = crop_figure(page, box)
+            _path, name = crop_figure(page, box, key_prefix=Path(pdf_path).stem)
             result["figure"] = name
     finally:
         doc.close()

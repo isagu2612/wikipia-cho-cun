@@ -82,9 +82,18 @@ ABBREVIATIONS = [
 
 # Nhãn bài/ví dụ để chọn đúng hình trong trang.
 LABEL_RE = re.compile(
-    r"\b(?:bài|bai)\s*(\d{1,3})|\b(?:ví\s*dụ|vi\s*du)\s*(\d{1,3})",
+    r"\b(bài|bai|ví\s*dụ|vi\s*du|câu|cau)\s*(\d{1,3})",
     re.IGNORECASE,
 )
+
+LABEL_KINDS = {
+    "bài": "Bài",
+    "bai": "Bài",
+    "ví dụ": "Ví dụ",
+    "vi du": "Ví dụ",
+    "câu": "Câu",
+    "cau": "Câu",
+}
 
 # Người dùng chủ động yêu cầu vẽ hình.
 DRAW_REQUEST_RE = re.compile(
@@ -367,6 +376,24 @@ def strip_figures(text: str) -> str:
     return text.strip()
 
 
+def parse_label(message: str) -> tuple[str, int] | None:
+    """Nhận "bài 6a", "ví dụ 1", "câu 30" -> ("Bài"|"Ví dụ"|"Câu", số)."""
+    match = LABEL_RE.search(message)
+    if not match:
+        return None
+    kind = re.sub(r"\s+", " ", match.group(1).lower())
+    return (LABEL_KINDS.get(kind, "Bài"), int(match.group(2)))
+
+
+def label_in_text(text: str | None, label: tuple[str, int]) -> bool:
+    """Trang này có nhãn đang hỏi không (để phát hiện lệch số trang)."""
+    if not text:
+        return False
+    kind, num = label
+    kind_pattern = r"\s*".join(re.escape(part) for part in kind.split())
+    return re.search(rf"{kind_pattern}\s*{num}\b", text, re.IGNORECASE) is not None
+
+
 def analyze_page(
     page_no: int | None, message: str, pdf_path: Path | None = None
 ) -> dict:
@@ -378,13 +405,7 @@ def analyze_page(
     except Exception:
         return {"text": "", "figure": None}
 
-    label = None
-    match = LABEL_RE.search(message)
-    if match:
-        if match.group(1):
-            label = ("Bài", int(match.group(1)))
-        else:
-            label = ("Ví dụ", int(match.group(2)))
+    label = parse_label(message)
 
     try:
         return figures.analyze(page_no, label, pdf_path) if pdf_path \
@@ -560,7 +581,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         figure_raw, err = run_opencode(
-            build_figure_prompt(message, page_no, page_text), FIGURE_AGENT
+            build_figure_prompt(message, page_no, info.get("text") or page_text), FIGURE_AGENT
         )
         svg = extract_svg(figure_raw)
         if not svg:
@@ -623,6 +644,7 @@ class Handler(BaseHTTPRequestHandler):
         match = PAGE_RE.search(message)
         page_no = int(match.group(1)) if match else None
         page_text: str | None = None
+        adjusted_from = None
 
         if page_no is not None:
             if not (1 <= page_no < len(pages)):
@@ -633,6 +655,17 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             page_text = pages[page_no]
+
+            # Người dùng hay đọc số trang của phần mềm xem PDF (lệch 1 so với số
+            # in). Nếu nhãn không có ở trang đã nêu, thử trang liền trước/sau.
+            label_check = parse_label(message)
+            if label_check and not label_in_text(page_text, label_check):
+                for delta in (-1, 1):
+                    other = page_no + delta
+                    if 1 <= other < len(pages) and label_in_text(pages[other], label_check):
+                        adjusted_from = page_no
+                        page_no, page_text = other, pages[other]
+                        break
 
         if path == "/api/figure":
             self._figure_response(message, page_no, page_text, pdf_path)
@@ -652,6 +685,11 @@ class Handler(BaseHTTPRequestHandler):
         allow_figure = wants_figure  # chỉ vẽ khi người dùng yêu cầu
 
         info = analyze_page(page_no, message, pdf_path)
+        # Câu hỏi trắc nghiệm hay nằm chung trang với nhiều câu khác -> chỉ gửi
+        # đúng đoạn của câu đang hỏi. Bài/Ví dụ vẫn gửi cả trang như trước.
+        focus = (info.get("text") or "").strip()
+        label = parse_label(message)
+        context_text = focus if (label and label[0] == "Câu" and len(focus) >= 60) else page_text
         book_fig = info.get("figure") if allow_figure else None
         coordinate = is_coordinate_context(message, info.get("text", ""))
         geometry = looks_like_geometry(
@@ -669,15 +707,15 @@ class Handler(BaseHTTPRequestHandler):
             # Chạy song song: agent giải bài + agent vẽ hình (không phụ thuộc nhau).
             with ThreadPoolExecutor(max_workers=2) as pool:
                 main_future = pool.submit(
-                    run_opencode, build_prompt(message, page_no, page_text, mode), AGENT
+                    run_opencode, build_prompt(message, page_no, context_text, mode), AGENT
                 )
                 figure_future = pool.submit(
-                    run_opencode, build_figure_prompt(message, page_no, page_text), FIGURE_AGENT
+                    run_opencode, build_figure_prompt(message, page_no, context_text), FIGURE_AGENT
                 )
                 answer, err = main_future.result()
                 figure_raw, _figure_err = figure_future.result()
         else:
-            answer, err = run_opencode(build_prompt(message, page_no, page_text, mode), AGENT)
+            answer, err = run_opencode(build_prompt(message, page_no, context_text, mode), AGENT)
             figure_raw = ""
 
         if (not allow_figure) or (coordinate and not wants_figure):
@@ -692,11 +730,18 @@ class Handler(BaseHTTPRequestHandler):
                 "**Hình trong sách.**\n\n![Hình trong sách](/figures/%s)\n\n---\n\n" % book_fig
             ) + answer
 
+        if adjusted_from is not None:
+            answer = (
+                f"*(Đề nằm ở trang in {page_no}; {adjusted_from} là số trang của "
+                f"phần mềm xem PDF.)*\n\n"
+            ) + answer
+
         elapsed_ms = int((time.time() - started) * 1000)
 
         result = {
             "book": book["id"],
             "page": page_no,
+            "pageAdjustedFrom": adjusted_from,
             "pageText": page_text,
             "answer": answer,
             "mode": mode,
