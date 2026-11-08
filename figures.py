@@ -179,6 +179,7 @@ def _label_spans(page):
 def find_figure(page, label=None) -> pymupdf.Rect | None:
     """Trả về bbox (đã gồm nhãn chữ) của hình phù hợp, hoặc None."""
     W, H = page.rect.width, page.rect.height
+    band = _label_band(page, label) if label else None
 
     strokes: list[pymupdf.Rect] = []
     for d in page.get_drawings():
@@ -194,8 +195,16 @@ def find_figure(page, label=None) -> pymupdf.Rect | None:
         # bỏ hộp tô đặc lớn (nhãn "Ví dụ", nền) — giữ chấm nhỏ/arrowhead
         if d.get("type") == "f" and w > 18 and h > 12:
             continue
+        # bỏ nét phủ gần hết trang hoặc tràn ra ngoài trang (khung, path lạ)
+        if r.height > 0.6 * H:
+            continue
+        if r.y0 < -2 or r.y1 > H + 2:
+            continue
         # icon trang trí ở góc dưới (trái hoặc phải)
         if r.y0 > H - 115 and (r.x0 > W - 95 or r.x1 < 95):
+            continue
+        # chỉ xét nét nằm trong đoạn của bài đang hỏi (tránh dính hình bài khác)
+        if band and not (band[0] <= (r.y0 + r.y1) / 2 <= band[1]):
             continue
         strokes.append(r)
 
@@ -247,14 +256,12 @@ def find_figure(page, label=None) -> pymupdf.Rect | None:
     if not figs:
         return None
 
-    if label:
-        band = _label_band(page, label)
-        if band:
-            inside = [f for f in figs if band[0] <= (f[0].y0 + f[0].y1) / 2 <= band[1]]
-            if not inside:
-                # Không có hình nào nằm trong bài đang hỏi -> đừng cắt hình của bài khác.
-                return None
-            figs = inside
+    if band:
+        inside = [f for f in figs if band[0] <= (f[0].y0 + f[0].y1) / 2 <= band[1]]
+        if not inside:
+            # Không có hình nào nằm trong bài đang hỏi -> đừng cắt hình của bài khác.
+            return None
+        figs = inside
 
     figs.sort(key=lambda f: (f[2] == "vector", f[0].width * f[0].height), reverse=True)
     return figs[0][0]

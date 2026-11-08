@@ -101,6 +101,14 @@ DRAW_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Đề có nhắc tới hình trong sách ("hình bên", "đồ thị như hình"...) — khi đó nên
+# cắt đúng hình của sách để hiển thị (không tự vẽ hình mới).
+FIGURE_REF_RE = re.compile(
+    r"hình\s*(?:bên|vẽ|sau|dưới|trên)"
+    r"|(?:đồ\s*thị|đường\s*cong|bảng\s*biến\s*thiên)[^.\n]{0,40}?hình",
+    re.IGNORECASE,
+)
+
 FIGURES_DIR = BASE / "figures_cache"
 
 # --- Cache câu trả lời: hỏi lại cùng bài/mode trả về tức thì ---
@@ -301,13 +309,22 @@ def is_losing_shim(binary: str) -> bool:
 
 
 def build_prompt(
-    user_msg: str, page_no: int | None, page_text: str | None, mode: str = DEFAULT_MODE
+    user_msg: str,
+    page_no: int | None,
+    page_text: str | None,
+    mode: str = DEFAULT_MODE,
+    has_image: bool = False,
 ) -> str:
     blocks = []
     if page_text:
         blocks.append(f"[TRANG {page_no}]\n{page_text}")
     else:
         blocks.append("[TRANG ?] (Học sinh không nêu số trang sách.)")
+    if has_image:
+        blocks.append(
+            "[HÌNH] Ảnh đính kèm là hình vẽ trong sách của đúng bài này. "
+            "Hãy đọc kĩ hình (trục, tiệm cận, giao điểm, nhãn điểm) rồi mới kết luận."
+        )
     blocks.append(f"[CÂU HỎI] {user_msg}")
     blocks.append(MODES.get(mode, MODES[DEFAULT_MODE]))
     return "\n\n".join(blocks)
@@ -414,15 +431,19 @@ def analyze_page(
         return {"text": "", "figure": None}
 
 
-def run_opencode(prompt: str, agent: str = AGENT) -> tuple[str, str | None]:
+def run_opencode(
+    prompt: str, agent: str = AGENT, image: Path | None = None
+) -> tuple[str, str | None]:
     """Trả về (nội_dung, thông_báo_lỗi)."""
     cmd = [
         find_opencode(), "run",
         "--agent", agent,
         "--format", "json",
         "--model", MODEL,
-        prompt,
     ]
+    if image is not None:
+        cmd += ["--file", str(image)]
+    cmd.append(prompt)
     try:
         proc = subprocess.run(
             cmd,
@@ -690,7 +711,15 @@ class Handler(BaseHTTPRequestHandler):
         focus = (info.get("text") or "").strip()
         label = parse_label(message)
         context_text = focus if (label and label[0] == "Câu" and len(focus) >= 60) else page_text
-        book_fig = info.get("figure") if allow_figure else None
+        # Đề nhắc tới hình ("hình bên", "đồ thị như hình"...) -> hiện hình trong
+        # sách và đính kèm ảnh đó cho model đọc.
+        refers_figure = bool(FIGURE_REF_RE.search(focus or page_text or ""))
+        book_fig = info.get("figure") if (allow_figure or refers_figure) else None
+        image_path: Path | None = None
+        if book_fig and refers_figure:
+            candidate = FIGURES_DIR / book_fig
+            if candidate.is_file():
+                image_path = candidate
         coordinate = is_coordinate_context(message, info.get("text", ""))
         geometry = looks_like_geometry(
             message, geometry_text(info.get("text") or page_text or "")
@@ -707,7 +736,10 @@ class Handler(BaseHTTPRequestHandler):
             # Chạy song song: agent giải bài + agent vẽ hình (không phụ thuộc nhau).
             with ThreadPoolExecutor(max_workers=2) as pool:
                 main_future = pool.submit(
-                    run_opencode, build_prompt(message, page_no, context_text, mode), AGENT
+                    run_opencode,
+                    build_prompt(message, page_no, context_text, mode, image_path is not None),
+                    AGENT,
+                    image_path,
                 )
                 figure_future = pool.submit(
                     run_opencode, build_figure_prompt(message, page_no, context_text), FIGURE_AGENT
@@ -715,7 +747,11 @@ class Handler(BaseHTTPRequestHandler):
                 answer, err = main_future.result()
                 figure_raw, _figure_err = figure_future.result()
         else:
-            answer, err = run_opencode(build_prompt(message, page_no, context_text, mode), AGENT)
+            answer, err = run_opencode(
+                build_prompt(message, page_no, context_text, mode, image_path is not None),
+                AGENT,
+                image_path,
+            )
             figure_raw = ""
 
         if (not allow_figure) or (coordinate and not wants_figure):
