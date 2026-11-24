@@ -43,30 +43,42 @@ python server.py --port 9000 --no-browser
 > khi OpenCode khởi động lại. Nếu cổng đã có app chạy sẵn, `start.bat` chỉ mở
 > trình duyệt chứ không báo lỗi.
 
-## Dùng qua web công khai (Cloudflare Worker + tunnel)
+## Dùng chung cho nhiều người
 
-Bản trên `https://sgk.ncd-congdinh2612.workers.dev` chỉ là **giao diện tĩnh**;
-phần giải bài vẫn chạy trên máy bạn. Cách nối hai bên:
+Cách khuyến nghị: **mỗi người clone repo và chạy trên máy mình** — không cần
+domain, không cần tunnel, không phụ thuộc máy ai:
 
-1. Bấm đúp `share.bat`.
-2. Script khởi động `server.py` + `ngrok http 8765`. ngrok dùng domain cố định
-   gắn với tài khoản (`API_DEFAULT` trong `index.html`), nên **link công khai
-   không bao giờ đổi**: chỉ cần chia sẻ `https://sgk.ncd-congdinh2612.workers.dev`.
-3. Giữ cửa sổ `share.bat` mở; Ctrl+C để dừng tunnel.
+```bat
+git clone https://github.com/isagu2612/wikipia-cho-cun.git
+cd wikipia-cho-cun
+pip install pymupdf
+start.bat
+```
 
-Đổi địa chỉ API thủ công: bấm nút **⚙** ở góc phải tiêu đề (hoặc mở link với
-`?api=<url>` để ghi đè một lần).
+Mỗi máy tự chạy `server.py`, tự đọc `pages.json`/`sgkII.pdf` có sẵn trong repo và
+tự gọi model bằng tài khoản OpenCode của người đó.
 
-Lưu ý: máy phải bật và 9Router/OpenCode phải chạy; request quá ~95 giây sẽ bị
-Cloudflare cắt (script không tự đổi `REQUEST_TIMEOUT`, đặt biến môi trường này
-nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
+### Nếu muốn chia sẻ một link chung
+
+Chỉ khi cần **một link cho nhiều người** mà vẫn dùng máy bạn làm backend:
+
+1. Bấm đúp `share.bat` (chạy `server.py` + `ngrok http 8765`).
+2. Host trang tĩnh ở đâu cũng được (Cloudflare Worker, Pages…), rồi trỏ trang đó
+   về tunnel bằng nút **⚙** trên giao diện hoặc mở link dạng
+   `https://<host>/?api=https://<tunnel>`.
+3. Giữ `share.bat` mở; Ctrl+C để dừng. Máy bạn tắt là link chết.
+
+> Mặc định giao diện gọi API **cùng địa chỉ đang mở trang**. Chỉ khi backend nằm
+> ở nơi khác mới cần đặt URL qua nút ⚙ hoặc `?api=`.
+
+Lưu ý: request quá ~95 giây có thể bị Cloudflare cắt (đặt
+`set REQUEST_TIMEOUT=90` nếu cần).
 
 ## Yêu cầu
 
 - **OpenCode CLI** đã cài và đã đăng nhập provider (app gọi `opencode run`).
-- **ngrok** (chỉ cần khi dùng `share.bat`): `winget install Ngrok.Ngrok`, sau đó
-  `ngrok config add-authtoken <token>` và dùng domain free cố định của tài khoản.
-- **Python 3.10+** (chỉ dùng thư viện chuẩn để chạy app).
+- **Python 3.10+** và `pip install pymupdf` (cắt hình, thêm tài liệu).
+- **ngrok** chỉ cần khi dùng `share.bat` để chia sẻ link chung.
 
 ## Cấu trúc
 
@@ -88,7 +100,7 @@ nếu cần, ví dụ `set REQUEST_TIMEOUT=90`).
 | `prompt.md` | System prompt của agent `toan` |
 | `figure.md` | System prompt của agent `hinhve` |
 | `start.bat` | Chạy nhanh trên Windows |
-| `share.bat` / `share.ps1` | Chạy server + ngrok để link web cố định hoạt động |
+| `share.bat` / `share.ps1` | Tùy chọn: chạy server + ngrok để chia sẻ một link chung |
 
 ## Thư viện kiến thức (tài liệu nguồn)
 

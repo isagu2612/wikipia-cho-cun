@@ -128,7 +128,6 @@
     margin-left:auto; transition:color .15s, border-color .15s;
   }
   .api-btn:hover{color:var(--ink); border-color:var(--ink)}
-  .api-btn.warn{color:#b45309; border-color:#f0b429; background:#fffbeb}
   .mode-switch{
     position:relative; display:inline-flex; flex:0 0 auto;
     background:var(--surface); border:1.5px solid var(--line-strong);
@@ -420,11 +419,13 @@ const apiBtn     = document.getElementById('apiBtn');
 let   busy     = false;
 
 /* ---------- Địa chỉ máy chủ API ----------
-   Chạy server.py cùng máy: để trống = dùng chung domain.
-   Chạy qua Cloudflare Worker: đặt URL tunnel bằng nút ⚙ hoặc ?api=<url>. */
+   Mặc định dùng chính máy chủ đang phục vụ trang (server.py của bạn).
+   Nếu backend nằm ở nơi khác (tunnel, VPS...), bấm nút ⚙ để đặt URL,
+   hoặc mở link với ?api=<url>. */
 const API_STORAGE = 'toan-chatbox-api-v2';
-const API_DEFAULT = 'https://isolating-projector-dupe.ngrok-free.dev';
 const API_TIMEOUT = 95000;   // Cloudflare cắt request ở ~100s
+const IS_LOCAL = ['127.0.0.1', 'localhost'].includes(location.hostname)
+              || location.protocol === 'file:';
 
 function normalizeBase(v){
   return (v || '').trim().replace(/\/+$/, '');
@@ -437,8 +438,7 @@ let apiBase = (() => {
   }
   const saved = normalizeBase(localStorage.getItem(API_STORAGE));
   if (saved) return saved;
-  const local = ['127.0.0.1', 'localhost'].includes(location.hostname) || location.protocol === 'file:';
-  return local ? '' : API_DEFAULT;
+  return '';   // cùng máy chủ đang phục vụ trang
 })();
 
 /* ---------- Thư viện tài liệu ---------- */
@@ -947,14 +947,13 @@ modeSwitch.addEventListener('click', e => {
 });
 
 function refreshApiBtn(){
-  const local = ['127.0.0.1', 'localhost'].includes(location.hostname) || location.protocol === 'file:';
-  apiBtn.classList.toggle('warn', !apiBase && !local);
-  apiBtn.title = 'Máy chủ API: ' + (apiBase || (local ? 'cùng máy' : 'chưa đặt — bấm để đặt'));
+  apiBtn.title = 'Máy chủ API: ' + (apiBase || (IS_LOCAL ? 'cùng máy' : 'cùng domain đang mở'));
 }
 
 apiBtn.addEventListener('click', () => {
   const value = prompt(
-    'Địa chỉ máy chủ API (ví dụ https://abc.trycloudflare.com).\nĐể trống nếu chạy server.py cùng máy.',
+    'Địa chỉ máy chủ API (ví dụ https://abc.trycloudflare.com).\n'
+    + 'Để trống nếu backend chạy cùng địa chỉ đang mở trang này.',
     apiBase
   );
   if (value === null) return;
@@ -981,9 +980,6 @@ refreshApiBtn();
 loadBooks();
 setLibraryHidden(localStorage.getItem(LIB_HIDDEN_STORAGE) === '1');
 window.addEventListener('resize', syncLibAria);
-if (apiBtn.classList.contains('warn')){
-  addNotice('Chưa đặt địa chỉ máy chủ. Bấm nút ⚙ ở góc phải để dán URL tunnel.');
-}
 window.addEventListener('resize', updateModeUI);
 window.addEventListener('load', updateModeUI);
 
