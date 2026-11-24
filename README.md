@@ -1,7 +1,25 @@
-# Chatbox giải bài tập SGK Toán 12 – Tập 2
+# Chatbox giải bài tập SGK Toán 12
 
 Web app chạy local: gõ tên bài kèm số trang (ví dụ `bài 1a trang 5`), app trích
 đúng trang sách rồi sinh **đáp án + lời giải chi tiết** bằng OpenCode CLI.
+
+Hỗ trợ **nhiều tài liệu nguồn** (thư viện kiến thức): mặc định có SGK Toán 12 –
+Tập 2; thêm bất kỳ PDF nào bằng `add_book.py`.
+
+**Yêu cầu:** Python 3.10+, [OpenCode CLI](https://opencode.ai) đã đăng nhập
+provider, `pip install pymupdf` (chỉ cần khi cắt hình / thêm tài liệu).
+
+## Cài nhanh
+
+```bat
+git clone https://github.com/isagu2612/wikipia-cho-cun.git
+cd wikipia-cho-cun
+pip install pymupdf
+start.bat
+```
+
+Mở <http://127.0.0.1:8765>. Lần chạy đầu, sửa `opencode.json` nếu cần đổi model
+(mặc định `9router/cmc/deepseek/deepseek-v4.1-flash`).
 
 ## Cách chạy
 
@@ -222,3 +240,13 @@ Có thể kèm câu hỏi ngay sau lệnh, ví dụ `/chitiet bài 1a trang 5`, 
 Thêm tài liệu khác bằng `python add_book.py <file.pdf>` — xem mục
 **Thư viện kiến thức** ở trên. Mỗi tài liệu nguồn có nội dung trang và PDF
 riêng, dùng chung một giao diện chat.
+
+## Giấy phép & bản quyền
+
+Mã nguồn trong repo này dùng cho mục đích học tập. Riêng `sgkII.pdf` là **sách
+giáo khoa có bản quyền** của nhà xuất bản — chỉ dùng để tra cứu nội bộ, không
+phải tài sản của repo. Nếu bạn là chủ sở hữu bản quyền và muốn gỡ, hãy mở issue
+hoặc liên hệ; file sẽ được xoá ngay.
+
+Người dùng tự thêm tài liệu của mình bằng `add_book.py`; các file trong
+`sources/` và `books.local.json` không bị đẩy lên Git.
